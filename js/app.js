@@ -438,16 +438,29 @@ class OHAppController {
     steps.forEach((step, idx) => {
       const node = document.createElement('div');
       node.className = 'step-node';
-      if (idx === this.currentStepIndex) node.classList.add('active');
+      const isCurrent = idx === this.currentStepIndex;
+      if (isCurrent) node.classList.add('active');
       if (this.completedStepIds.has(step.id)) node.classList.add('completed');
 
+      const durSec = this.getStepDurationSec(step);
+      const timeHint = step.hasTimer
+        ? `⏱️ ${Math.floor(durSec / 60)}:${String(durSec % 60).padStart(2, '0')}`
+        : '🔊 語音指引';
+
       node.innerHTML = `
-        <span class="step-node-num">步驟 ${idx + 1}</span>
-        <span class="step-node-title">${step.shortTitle}</span>
+        <span class="step-node-num">步驟 ${idx + 1} · ${timeHint}</span>
+        <span class="step-node-title">${isCurrent ? '▶ ' : ''}${step.shortTitle}</span>
       `;
+      node.title = isCurrent
+        ? '點擊立即播報本階段語音與啟動計時'
+        : `點擊切換至「${step.shortTitle}」`;
 
       node.addEventListener('click', () => {
-        this._loadStep(idx, { autoSpeak: false });
+        if (idx === this.currentStepIndex) {
+          this.startCurrentStepAction();
+        } else {
+          this._loadStep(idx, { autoSpeak: false });
+        }
       });
 
       track.appendChild(node);

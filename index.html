@@ -32,26 +32,6 @@
             <span>⚙️ 語音、輕音樂與時間設定</span>
           </button>
         </nav>
-
-        <div class="quick-audio-bar">
-          <select id="headerLangModeSelect" class="lang-mode-select" title="快速切換國語／台語播報搭配模式">
-            <option value="patient_tw_staff_zh" selected>🗣️ 病患：台語 ／ 醫護：國語 (推薦)</option>
-            <option value="all_tw">🗣️ 全台語模式 (病患＋醫護皆台語)</option>
-            <option value="patient_both_staff_zh">🗣️ 病患：國語＋台語 ／ 醫護：國語</option>
-            <option value="all_zh">🗣️ 全國語模式 (台灣國語 zh-TW)</option>
-          </select>
-
-          <button type="button" class="audio-pill-btn" id="headerMusicToggleBtn" title="隨時開啟或暫停舒緩輕音樂">
-            🎵 播放舒緩輕音樂
-          </button>
-          <button type="button" class="audio-pill-btn" id="headerTestVoiceBtn" title="測試台語與台灣國語語音">
-            🔊 測試國台語音
-          </button>
-          <div class="voice-status-indicator">
-            <span class="pulse-dot" id="voicePulseDot"></span>
-            <span id="voiceStatusText">國台語待命</span>
-          </div>
-        </div>
       </div>
     </div>
   </header>
@@ -105,44 +85,99 @@
               </label>
             </div>
 
-            <!-- 台語與國語獨立快速音量調節列 -->
-            <div class="quick-volume-sliders">
-              <div class="vol-slider-item">
-                <span style="font-weight: 700; color: #047857; white-space: nowrap;">🔊 台語音量：</span>
-                <input type="range" id="quickTwVolInput" min="0.2" max="4.0" step="0.1" value="2.2" style="accent-color: #0d8a72;" title="獨立調整台語語音音量（最高支援 400% 增幅放大）" />
-                <strong id="quickTwVolVal" style="min-width: 42px; text-align: right; color: #047857;">220%</strong>
-              </div>
-              <div class="vol-slider-item">
-                <span style="font-weight: 700; color: #1d4ed8; white-space: nowrap;">🔉 國語音量：</span>
-                <input type="range" id="quickZhVolInput" min="0.1" max="1.0" step="0.05" value="0.65" style="accent-color: #0f6cbd;" title="獨立調整國語語音音量" />
-                <strong id="quickZhVolVal" style="min-width: 42px; text-align: right; color: #1d4ed8;">65%</strong>
-              </div>
-            </div>
-
             <!-- 階段進度條 (可點擊切換任意階段) -->
             <div class="stepper-track" id="stepperTrack" aria-label="測量階段進度"></div>
 
-            <!-- 當前階段標題與大型圓形倒數計時器 -->
+            <!-- ============================================================
+                 一體化「當前階段顯示 ＋ 語音/輕音樂播放與計時主控台」
+                 所有階段控制與播放按鈕直接結合在同一視覺區域，免上下滑動尋找
+                 ============================================================ -->
             <div class="current-stage-banner">
               <div class="stage-header-row">
-                <h3 id="currentStageTitle">階段一：測量前準備與壓脈帶確認</h3>
-                <span class="stage-badge" id="currentStageBadge">準備階段</span>
+                <div class="stage-title-wrap">
+                  <span class="stage-badge" id="currentStageBadge">準備階段</span>
+                  <h3 id="currentStageTitle">階段一：測量前準備與壓脈帶確認</h3>
+                </div>
+                <div class="stage-voice-status">
+                  <span class="pulse-dot" id="voicePulseDot"></span>
+                  <span id="voiceStatusText">國台語待命</span>
+                </div>
               </div>
 
-              <div class="timer-centerpiece">
-                <div class="timer-ring-container" id="timerRingContainer">
-                  <svg class="timer-svg" viewBox="0 0 200 200">
-                    <circle class="timer-circle-bg" cx="100" cy="100" r="85"></circle>
-                    <circle class="timer-circle-progress" id="timerCircleProgress" cx="100" cy="100" r="85"></circle>
-                  </svg>
-                  <div class="timer-readout">
-                    <span class="timer-digits" id="timerDigits">手動確認</span>
-                    <span class="timer-subtext" id="timerSubtext">點擊下方按鈕開始語音引導</span>
+              <!-- 中央整合區：左側圓形計時器 ＋ 右側(手機為緊鄰下方)主播放與階段控制面板 -->
+              <div class="stage-console-body">
+                <div class="timer-centerpiece">
+                  <div class="timer-ring-container" id="timerRingContainer">
+                    <svg class="timer-svg" viewBox="0 0 200 200">
+                      <circle class="timer-circle-bg" cx="100" cy="100" r="85"></circle>
+                      <circle class="timer-circle-progress" id="timerCircleProgress" cx="100" cy="100" r="85"></circle>
+                    </svg>
+                    <div class="timer-readout">
+                      <span class="timer-digits" id="timerDigits">手動確認</span>
+                      <span class="timer-subtext" id="timerSubtext">點擊主按鈕開始語音引導</span>
+                    </div>
+                  </div>
+
+                  <div class="music-active-pill" id="musicActivePill" style="display: none;">
+                    <span>🎶 舒緩輕音樂播放中（語音說話時自動調降音量）</span>
                   </div>
                 </div>
 
-                <div class="music-active-pill" id="musicActivePill" style="display: none;">
-                  <span>🎶 正在播放舒緩輕音樂（語音說話時將自動調降背景音量）</span>
+                <!-- 緊貼階段與計時器的播放控制面板 -->
+                <div class="stage-playback-controls">
+                  <button type="button" class="btn btn-primary-large" id="primaryStepActionBtn">
+                    🔊 播報「測量前準備」雙角色語音提示
+                  </button>
+
+                  <div class="secondary-actions-row">
+                    <button type="button" class="btn btn-secondary" id="replayVoiceBtn">
+                      🔁 重播語音
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="pauseResumeTimerBtn" disabled>
+                      ⏸ 暫停計時
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="nextStepBtn">
+                      ⏭ 下一階段
+                    </button>
+                  </div>
+
+                  <!-- 語音模式切換與輕音樂控制列 (直接整合於階段面板內) -->
+                  <div class="stage-audio-toolbar">
+                    <select id="headerLangModeSelect" class="stage-lang-select" title="快速切換國語／台語播報搭配模式">
+                      <option value="patient_tw_staff_zh" selected>🗣️ 病患：台語 ／ 醫護：國語 (推薦)</option>
+                      <option value="all_tw">🗣️ 全台語模式 (病患＋醫護皆台語)</option>
+                      <option value="patient_both_staff_zh">🗣️ 病患：國語＋台語 ／ 醫護：國語</option>
+                      <option value="all_zh">🗣️ 全國語模式 (台灣國語 zh-TW)</option>
+                    </select>
+
+                    <div class="stage-audio-btns-row">
+                      <button type="button" class="stage-audio-btn" id="headerMusicToggleBtn" title="隨時開啟或暫停等待期間的舒緩輕音樂">
+                        🎵 播放舒緩輕音樂
+                      </button>
+                      <button type="button" class="stage-audio-btn" id="headerTestVoiceBtn" title="測試台語與台灣國語語音">
+                        🔊 測試國台語音
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 台語與國語獨立快速音量調節列 -->
+                  <div class="quick-volume-sliders">
+                    <div class="vol-slider-item">
+                      <span style="font-weight: 700; color: #047857; white-space: nowrap;">🔊 台語音量：</span>
+                      <input type="range" id="quickTwVolInput" min="0.2" max="4.0" step="0.1" value="2.2" style="accent-color: #0d8a72;" title="獨立調整台語語音音量（最高支援 400% 增幅放大）" />
+                      <strong id="quickTwVolVal" style="min-width: 42px; text-align: right; color: #047857;">220%</strong>
+                    </div>
+                    <div class="vol-slider-item">
+                      <span style="font-weight: 700; color: #1d4ed8; white-space: nowrap;">🔉 國語音量：</span>
+                      <input type="range" id="quickZhVolInput" min="0.1" max="1.0" step="0.05" value="0.65" style="accent-color: #0f6cbd;" title="獨立調整國語語音音量" />
+                      <strong id="quickZhVolVal" style="min-width: 42px; text-align: right; color: #1d4ed8;">65%</strong>
+                    </div>
+                  </div>
+
+                  <!-- 手機／平板專用快捷鍵：一鍵跳轉至第二部分輸入當前階段血壓 -->
+                  <button type="button" class="btn btn-jump-record" id="jumpToRecordBtn">
+                    📝 前往輸入本階段血壓與心跳數值 ➔
+                  </button>
                 </div>
               </div>
             </div>
@@ -189,29 +224,8 @@
               </div>
             </div>
 
-            <!-- 語音與階段控制按鈕群 -->
+            <!-- 緊急安全中止按鈕 -->
             <div class="action-buttons-grid">
-              <button type="button" class="btn btn-primary-large" id="primaryStepActionBtn">
-                🔊 播報「測量前準備」雙角色語音提示
-              </button>
-
-              <div class="secondary-actions-row">
-                <button type="button" class="btn btn-secondary" id="replayVoiceBtn">
-                  🔁 重播語音
-                </button>
-                <button type="button" class="btn btn-secondary" id="pauseResumeTimerBtn" disabled>
-                  ⏸ 暫停計時
-                </button>
-                <button type="button" class="btn btn-secondary" id="nextStepBtn">
-                  ⏭ 下一階段
-                </button>
-              </div>
-
-              <!-- 手機／平板專用快捷鍵：一鍵跳轉至第二部分輸入當前階段血壓 -->
-              <button type="button" class="btn btn-jump-record" id="jumpToRecordBtn">
-                📝 前往輸入本階段血壓與心跳數值 ➔
-              </button>
-
               <button type="button" class="btn btn-warning-abort" id="emergencyAbortBtn">
                 ⚠️ 病患頭暈不適／緊急中止站立（立即播報安全保護語音並標記紀錄）
               </button>
