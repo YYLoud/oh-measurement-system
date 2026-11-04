@@ -1,0 +1,1327 @@
+/**
+ * 姿勢性低血壓 (OH) 測量指導與臨床記錄系統 - 主控制器 (app.js)
+ * 支援：台灣國語 (zh-TW) 與 台灣台語 (預合成 MP3 音檔) 雙語自由搭配播報
+ */
+
+class OHAppController {
+  constructor() {
+    this.audioEngine = new window.OHAudioEngine();
+
+    // 流程設定與狀態
+    this.includeSittingStep = false;
+    this.quickDemoMode = false; // 快速測試模式 (將等待時間縮短為 15 秒方便預覽與教學)
+    this.customDurations = {
+      supine_rest: 300,
+      sitting_transition: 60,
+      stand_1min: 60,
+      stand_3min: 120
+    };
+
+    this.currentStepIndex = 0;
+    this.completedStepIds = new Set();
+
+    // 計時器狀態
+    this.timerInterval = null;
+    this.timerRunning = false;
+    this.timerTotalSec = 0;
+    this.timerRemainingSec = 0;
+    this.preAlertTriggered = false;
+
+    // 當前病患測量資料模型
+    this.currentRecord = this._createFreshRecord();
+
+    this._init();
+  }
+
+  _createFreshRecord() {
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(now - tzOffset).toISOString().slice(0, 16);
+
+    return {
+      id: null,
+      measuredAt: localISOTime.replace('T', ' '),
+      measuredAtInput: localISOTime,
+      abortedEarly: false,
+      abortReason: '',
+      patient: {
+        chartId: '',
+        name: '',
+        age: '',
+        gender: '',
+        arm: '左手 (Left Arm)',
+        cuffSize: '標準成人壓脈帶 (Standard)',
+        notes: ''
+      },
+      measurements: {
+        supine: { sbp: '', dbp: '', hr: '', symptoms: ['none'] },
+        sitting: { sbp: '', dbp: '', hr: '', symptoms: ['none'] },
+        stand1: { sbp: '', dbp: '', hr: '', symptoms: ['none'] },
+        stand3: { sbp: '', dbp: '', hr: '', symptoms: ['none'] }
+      }
+    };
+  }
+
+  getActiveSteps() {
+    return (window.OH_PROTOCOL_STEPS || []).filter(step => {
+      if (step.optionalSitting && !this.includeSittingStep) {
+        return false;
+      }
+      return true;
+    });
+  }
+
+  getCurrentStep() {
+    const steps = this.getActiveSteps();
+    if (this.currentStepIndex >= steps.length) {
+      this.currentStepIndex = steps.length - 1;
+    }
+    return steps[this.currentStepIndex] || steps[0];
+  }
+
+  getStepDurationSec(step) {
+    if (!step || !step.hasTimer) return 0;
+    if (this.quickDemoMode) {
+      return 15;
+    }
+    return this.customDurations[step.id] || step.defaultDurationSec || 60;
+  }
+
+  _init() {
+    this._bindAudioCallbacks();
+    this._bindNavigationTabs();
+    this._bindGuidanceControls();
+    this._bindRecordFormInputs();
+    this._bindSettingsControls();
+    this._bindHistoryControls();
+
+    this._syncPatientFormFromModel();
+    this._renderStepper();
+    this._loadStep(0, { autoSpeak: false });
+    this._renderMeasurementStages();
+    this._updateClinicalAssessment();
+    this._refreshHistoryTable();
+  }
+
+  /**
+   * 綁定語音與輕音樂狀態指示器
+   */
+  _bindAudioCallbacks() {
+    const voiceDot = document.getElementById('voicePulseDot');
+    const voiceStatusText = document.getElementById('voiceStatusText');
+    const musicToggleBtn = document.getElementById('headerMusicToggleBtn');
+    const timerRingContainer = document.getElementById('timerRingContainer');
+    const musicActivePill = document.getElementById('musicActivePill');
+
+    this.audioEngine.onSpeakingStatusChange = (speaking) => {
+      if (voiceDot) voiceDot.classList.toggle('active', speaking);
+      if (voiceStatusText) {
+        voiceStatusText.textContent = speaking ? '語音播報中...' : '國台語待命';
+      }
+    };
+
+    this.audioEngine.onMusicStatusChange = (playing) => {
+      if (musicToggleBtn) {
+        musicToggleBtn.classList.toggle('playing', playing);
+        musicToggleBtn.innerHTML = playing ? '🎵 輕音樂播放中 (點擊暫停)' : '🎵 播放舒緩輕音樂';
+      }
+      if (timerRingContainer) {
+        timerRingContainer.classList.toggle('music-breathing', playing);
+      }
+      if (musicActivePill) {
+        musicActivePill.style.display = playing ? 'inline-flex' : 'none';
+      }
+    };
+
+    this.audioEngine.onVoicesLoaded = (twVoices, selectedURI) => {
+      const voiceSelect = document.getElementById('twVoiceSelect');
+      if (!voiceSelect) return;
+
+      voiceSelect.innerHTML = '';
+      if (twVoices.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = '系統預設台灣繁體中文語音 (zh-TW)';
+        voiceSelect.appendChild(opt);
+      } else {
+        twVoices.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v.voiceURI;
+          opt.textContent = `${v.name} (${v.lang})`;
+          if (v.voiceURI === selectedURI) opt.selected = true;
+          voiceSelect.appendChild(opt);
+        });
+      }
+    };
+  }
+
+  /**
+   * 頂部頁籤與語言模式切換
+   */
+  _bindNavigationTabs() {
+    const tabBtns = document.querySelectorAll('.nav-tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const targetId = btn.getAttribute('data-tab');
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabPanels.forEach(p => p.classList.remove('active'));
+
+        btn.classList.add('active');
+        const panel = document.getElementById(targetId);
+        if (panel) panel.classList.add('active');
+
+        if (targetId === 'tab-history') {
+          this._refreshHistoryTable();
+        }
+      });
+    });
+
+    // 同步頂部與設定頁的語音語言模式選擇器
+    const headerLangModeSelect = document.getElementById('headerLangModeSelect');
+    const settingsLangModeSelect = document.getElementById('settingsLangModeSelect');
+
+    const syncLanguageMode = (newMode) => {
+      this.audioEngine.languageMode = newMode;
+      if (headerLangModeSelect && headerLangModeSelect.value !== newMode) {
+        headerLangModeSelect.value = newMode;
+      }
+      if (settingsLangModeSelect && settingsLangModeSelect.value !== newMode) {
+        settingsLangModeSelect.value = newMode;
+      }
+      const modeNameMap = {
+        patient_tw_staff_zh: '對病患講台語、對醫護人員講國語',
+        all_tw: '全台語播報模式',
+        patient_both_staff_zh: '對病患講國語＋台語、對醫護講國語',
+        all_zh: '全台灣國語播報模式'
+      };
+      this.showToast(`🗣️ 已切換為「${modeNameMap[newMode] || newMode}」`);
+    };
+
+    if (headerLangModeSelect) {
+      headerLangModeSelect.addEventListener('change', (e) => syncLanguageMode(e.target.value));
+    }
+    if (settingsLangModeSelect) {
+      settingsLangModeSelect.addEventListener('change', (e) => syncLanguageMode(e.target.value));
+    }
+
+    // 頂部快速輕音樂開關與語音測試按鈕
+    const musicToggleBtn = document.getElementById('headerMusicToggleBtn');
+    if (musicToggleBtn) {
+      musicToggleBtn.addEventListener('click', () => {
+        this.audioEngine.toggleRelaxingMusic();
+      });
+    }
+
+    const testVoiceBtn = document.getElementById('headerTestVoiceBtn');
+    if (testVoiceBtn) {
+      testVoiceBtn.addEventListener('click', () => {
+        this.audioEngine.speakPrompt({
+          patientText: '您好，這是台灣國語語音測試，等一下測量血壓時請放輕鬆。',
+          patientTwAudioUrl: 'audio/taiwanese/test_voice.mp3',
+          staffText: '醫護人員您好，台語與國語雙語提示及輕音樂音量自動調節功能運作正常。',
+          staffTwAudioUrl: 'audio/taiwanese/prep_staff.mp3',
+          chimeType: 'normal'
+        });
+      });
+    }
+  }
+
+  /**
+   * 第一部分：互動式測量指導與計時控制
+   */
+  _bindGuidanceControls() {
+    const includeSittingToggle = document.getElementById('includeSittingToggle');
+    if (includeSittingToggle) {
+      includeSittingToggle.addEventListener('change', (e) => {
+        this.includeSittingStep = e.target.checked;
+        this.currentStepIndex = 0;
+        this._renderStepper();
+        this._loadStep(0, { autoSpeak: false });
+        this._renderMeasurementStages();
+        this._updateClinicalAssessment();
+      });
+    }
+
+    const quickDemoToggle = document.getElementById('quickDemoToggle');
+    if (quickDemoToggle) {
+      quickDemoToggle.addEventListener('change', (e) => {
+        this.quickDemoMode = e.target.checked;
+        this._stopTimer();
+        const step = this.getCurrentStep();
+        this.timerTotalSec = this.getStepDurationSec(step);
+        this.timerRemainingSec = this.timerTotalSec;
+        this._updateTimerUI();
+        this.showToast(
+          this.quickDemoMode
+            ? '⚡ 已開啟「15秒快速測試模式」，方便快速體驗語音與計時流程'
+            : '⏱️ 已恢復標準臨床測量時間（平躺 5 分鐘 / 站立 1、3 分鐘）'
+        );
+      });
+    }
+
+    const primaryStepActionBtn = document.getElementById('primaryStepActionBtn');
+    if (primaryStepActionBtn) {
+      primaryStepActionBtn.addEventListener('click', () => {
+        this.startCurrentStepAction();
+      });
+    }
+
+    const replayVoiceBtn = document.getElementById('replayVoiceBtn');
+    if (replayVoiceBtn) {
+      replayVoiceBtn.addEventListener('click', () => {
+        this._speakStepVoice(this.getCurrentStep());
+      });
+    }
+
+    // 病患卡片：單獨播報台語 / 單獨播報國語
+    const speakPatientTwBtn = document.getElementById('speakPatientTwBtn');
+    if (speakPatientTwBtn) {
+      speakPatientTwBtn.addEventListener('click', () => {
+        const step = this.getCurrentStep();
+        this.audioEngine.speakPrompt({
+          stepId: step.id,
+          patientText: step.voicePrompt.patient,
+          patientTwAudioUrl: step.taiwaneseAudio?.patient || '',
+          roleFilter: 'patient',
+          forceLang: 'tw'
+        });
+      });
+    }
+
+    const speakPatientOnlyBtn = document.getElementById('speakPatientOnlyBtn');
+    if (speakPatientOnlyBtn) {
+      speakPatientOnlyBtn.addEventListener('click', () => {
+        const step = this.getCurrentStep();
+        this.audioEngine.speakPrompt({
+          stepId: step.id,
+          patientText: step.voicePrompt.patient,
+          patientTwAudioUrl: step.taiwaneseAudio?.patient || '',
+          roleFilter: 'patient',
+          forceLang: 'zh'
+        });
+      });
+    }
+
+    // 醫護人員卡片：單獨播報國語 / 單獨播報台語
+    const speakStaffOnlyBtn = document.getElementById('speakStaffOnlyBtn');
+    if (speakStaffOnlyBtn) {
+      speakStaffOnlyBtn.addEventListener('click', () => {
+        const step = this.getCurrentStep();
+        this.audioEngine.speakPrompt({
+          stepId: step.id,
+          staffText: step.voicePrompt.staff,
+          staffTwAudioUrl: step.taiwaneseAudio?.staff || '',
+          roleFilter: 'staff',
+          forceLang: 'zh'
+        });
+      });
+    }
+
+    const speakStaffTwBtn = document.getElementById('speakStaffTwBtn');
+    if (speakStaffTwBtn) {
+      speakStaffTwBtn.addEventListener('click', () => {
+        const step = this.getCurrentStep();
+        this.audioEngine.speakPrompt({
+          stepId: step.id,
+          staffText: step.voicePrompt.staff,
+          staffTwAudioUrl: step.taiwaneseAudio?.staff || '',
+          roleFilter: 'staff',
+          forceLang: 'tw'
+        });
+      });
+    }
+
+    const pauseResumeTimerBtn = document.getElementById('pauseResumeTimerBtn');
+    if (pauseResumeTimerBtn) {
+      pauseResumeTimerBtn.addEventListener('click', () => {
+        this.toggleTimerPause();
+      });
+    }
+
+    const nextStepBtn = document.getElementById('nextStepBtn');
+    if (nextStepBtn) {
+      nextStepBtn.addEventListener('click', () => {
+        const steps = this.getActiveSteps();
+        if (this.currentStepIndex < steps.length - 1) {
+          this.completedStepIds.add(this.getCurrentStep().id);
+          this._loadStep(this.currentStepIndex + 1, { autoSpeak: true });
+        }
+      });
+    }
+
+    const emergencyAbortBtn = document.getElementById('emergencyAbortBtn');
+    if (emergencyAbortBtn) {
+      emergencyAbortBtn.addEventListener('click', () => {
+        this.handleEmergencyAbort();
+      });
+    }
+
+    // 手機／平板專用：第一部分與第二部分快速切換控制
+    const mobileShowPart1Btn = document.getElementById('mobileShowPart1Btn');
+    const mobileShowPart2Btn = document.getElementById('mobileShowPart2Btn');
+    const mobileShowBothBtn = document.getElementById('mobileShowBothBtn');
+    const jumpToRecordBtn = document.getElementById('jumpToRecordBtn');
+    const jumpBackToGuidanceBtn = document.getElementById('jumpBackToGuidanceBtn');
+
+    if (mobileShowPart1Btn) {
+      mobileShowPart1Btn.addEventListener('click', () => this.switchMobilePartView('part1'));
+    }
+    if (mobileShowPart2Btn) {
+      mobileShowPart2Btn.addEventListener('click', () => this.switchMobilePartView('part2'));
+    }
+    if (mobileShowBothBtn) {
+      mobileShowBothBtn.addEventListener('click', () => this.switchMobilePartView('both'));
+    }
+    if (jumpToRecordBtn) {
+      jumpToRecordBtn.addEventListener('click', () => {
+        const step = this.getCurrentStep();
+        const targetStageKey = step.recordStageKey || (step.id === 'supine_rest' ? 'supine' : 'stand1');
+        this.switchMobilePartView('part2');
+        this._highlightActiveRecordBox(targetStageKey, true);
+      });
+    }
+    if (jumpBackToGuidanceBtn) {
+      jumpBackToGuidanceBtn.addEventListener('click', () => {
+        this.switchMobilePartView('part1');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+  }
+
+  /**
+   * 切換手機／平板視圖模式 ('part1' | 'part2' | 'both')
+   */
+  switchMobilePartView(mode) {
+    const grid = document.getElementById('workspaceGrid');
+    const btn1 = document.getElementById('mobileShowPart1Btn');
+    const btn2 = document.getElementById('mobileShowPart2Btn');
+    const btnBoth = document.getElementById('mobileShowBothBtn');
+    if (!grid) return;
+
+    grid.classList.remove('mobile-view-part1', 'mobile-view-part2');
+    if (btn1) btn1.classList.remove('active');
+    if (btn2) btn2.classList.remove('active');
+    if (btnBoth) btnBoth.classList.remove('active');
+
+    if (mode === 'part1') {
+      grid.classList.add('mobile-view-part1');
+      if (btn1) btn1.classList.add('active');
+    } else if (mode === 'part2') {
+      grid.classList.add('mobile-view-part2');
+      if (btn2) btn2.classList.add('active');
+    } else {
+      if (btnBoth) btnBoth.classList.add('active');
+    }
+  }
+
+  _speakStepVoice(step) {
+    if (!step) return;
+    this.audioEngine.speakPrompt({
+      stepId: step.id,
+      patientText: step.voicePrompt?.patient || '',
+      staffText: step.voicePrompt?.staff || '',
+      patientTwAudioUrl: step.taiwaneseAudio?.patient || '',
+      staffTwAudioUrl: step.taiwaneseAudio?.staff || '',
+      chimeType: 'normal'
+    });
+  }
+
+  _renderStepper() {
+    const track = document.getElementById('stepperTrack');
+    if (!track) return;
+
+    const steps = this.getActiveSteps();
+    track.innerHTML = '';
+
+    steps.forEach((step, idx) => {
+      const node = document.createElement('div');
+      node.className = 'step-node';
+      if (idx === this.currentStepIndex) node.classList.add('active');
+      if (this.completedStepIds.has(step.id)) node.classList.add('completed');
+
+      node.innerHTML = `
+        <span class="step-node-num">步驟 ${idx + 1}</span>
+        <span class="step-node-title">${step.shortTitle}</span>
+      `;
+
+      node.addEventListener('click', () => {
+        this._loadStep(idx, { autoSpeak: false });
+      });
+
+      track.appendChild(node);
+
+      // 在手機水平滾動條上自動將當前步驟滑至可視中央
+      if (idx === this.currentStepIndex && typeof node.scrollIntoView === 'function') {
+        setTimeout(() => {
+          node.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }, 50);
+      }
+    });
+  }
+
+  _loadStep(index, { autoSpeak = false } = {}) {
+    const steps = this.getActiveSteps();
+    if (index < 0 || index >= steps.length) return;
+
+    this._stopTimer();
+    this.audioEngine.stopRelaxingMusic();
+
+    this.currentStepIndex = index;
+    const step = steps[index];
+
+    this._renderStepper();
+
+    const stageTitleEl = document.getElementById('currentStageTitle');
+    const stageBadgeEl = document.getElementById('currentStageBadge');
+    const patientInstructionEl = document.getElementById('patientInstructionText');
+    const patientTwSubEl = document.getElementById('patientTaiwaneseSubText');
+    const staffInstructionEl = document.getElementById('staffInstructionText');
+
+    if (stageTitleEl) stageTitleEl.textContent = step.fullTitle;
+    if (stageBadgeEl) stageBadgeEl.textContent = step.badgeText;
+    if (patientInstructionEl) patientInstructionEl.textContent = step.patientInstruction;
+    if (patientTwSubEl) patientTwSubEl.textContent = step.patientTaiwaneseSub || '';
+    if (staffInstructionEl) staffInstructionEl.textContent = step.staffInstruction;
+
+    this.timerTotalSec = this.getStepDurationSec(step);
+    this.timerRemainingSec = this.timerTotalSec;
+    this.preAlertTriggered = false;
+    this._updateTimerUI();
+
+    const primaryBtn = document.getElementById('primaryStepActionBtn');
+    const pauseBtn = document.getElementById('pauseResumeTimerBtn');
+    const nextBtn = document.getElementById('nextStepBtn');
+
+    if (primaryBtn) {
+      if (step.hasTimer) {
+        primaryBtn.innerHTML = `▶ 開始「${step.shortTitle}」語音引導與計時`;
+      } else {
+        primaryBtn.innerHTML = `🔊 播報「${step.shortTitle}」雙角色語音提示`;
+      }
+    }
+
+    if (pauseBtn) {
+      pauseBtn.disabled = !step.hasTimer;
+      pauseBtn.textContent = '⏸ 暫停計時';
+    }
+
+    if (nextBtn) {
+      nextBtn.disabled = index >= steps.length - 1;
+    }
+
+    this._highlightActiveRecordBox(step.recordStageKey);
+
+    if (autoSpeak) {
+      this.startCurrentStepAction();
+    }
+  }
+
+  startCurrentStepAction() {
+    const step = this.getCurrentStep();
+    this._speakStepVoice(step);
+
+    if (step.hasTimer) {
+      this._startTimer(step);
+      if (step.playMusicDuringTimer && this.audioEngine.musicEnabled) {
+        this.audioEngine.startRelaxingMusic();
+      }
+    }
+  }
+
+  _startTimer(step) {
+    this._stopTimer();
+    this.timerTotalSec = this.getStepDurationSec(step);
+    this.timerRemainingSec = this.timerTotalSec;
+    this.preAlertTriggered = false;
+    this.timerRunning = true;
+
+    const pauseBtn = document.getElementById('pauseResumeTimerBtn');
+    if (pauseBtn) {
+      pauseBtn.disabled = false;
+      pauseBtn.textContent = '⏸ 暫停計時';
+    }
+
+    this._updateTimerUI();
+
+    this.timerInterval = setInterval(() => {
+      if (!this.timerRunning) return;
+
+      this.timerRemainingSec = Math.max(0, this.timerRemainingSec - 1);
+      this._updateTimerUI();
+
+      const preAlertPoint = this.quickDemoMode ? 5 : (step.preAlertSec || 15);
+      if (
+        !this.preAlertTriggered &&
+        this.timerRemainingSec === preAlertPoint &&
+        step.voicePrompt?.preAlert
+      ) {
+        this.preAlertTriggered = true;
+        this.audioEngine.speakPrompt({
+          singleText: step.voicePrompt.preAlert,
+          singleTwAudioUrl: step.taiwaneseAudio?.preAlert || 'audio/taiwanese/pre_alert.mp3',
+          chimeType: 'alert'
+        });
+      }
+
+      if (this.timerRemainingSec <= 0) {
+        this._onTimerCompleted(step);
+      }
+    }, 1000);
+  }
+
+  toggleTimerPause() {
+    const step = this.getCurrentStep();
+    if (!step.hasTimer || this.timerTotalSec === 0) return;
+
+    const pauseBtn = document.getElementById('pauseResumeTimerBtn');
+    if (this.timerRunning) {
+      this.timerRunning = false;
+      this.audioEngine.stopRelaxingMusic();
+      if (pauseBtn) pauseBtn.textContent = '▶ 繼續計時';
+    } else {
+      if (this.timerRemainingSec <= 0) {
+        this.timerRemainingSec = this.timerTotalSec;
+      }
+      this.timerRunning = true;
+      if (step.playMusicDuringTimer && this.audioEngine.musicEnabled) {
+        this.audioEngine.startRelaxingMusic();
+      }
+      if (pauseBtn) pauseBtn.textContent = '⏸ 暫停計時';
+    }
+    this._updateTimerUI();
+  }
+
+  _stopTimer() {
+    this.timerRunning = false;
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
+  }
+
+  _onTimerCompleted(step) {
+    this._stopTimer();
+    this.audioEngine.stopRelaxingMusic();
+    this.completedStepIds.add(step.id);
+    this._renderStepper();
+    this._updateTimerUI();
+
+    if (step.voicePrompt?.timerDone) {
+      this.audioEngine.speakPrompt({
+        singleText: step.voicePrompt.timerDone,
+        singleTwAudioUrl: step.taiwaneseAudio?.timerDone || 'audio/taiwanese/timer_done.mp3',
+        chimeType: 'done'
+      });
+    }
+
+    if (step.id === 'supine_rest') {
+      this._highlightActiveRecordBox('supine', true);
+    } else if (step.recordStageKey) {
+      this._highlightActiveRecordBox(step.recordStageKey, true);
+    }
+
+    this.showToast(`🔔 「${step.shortTitle}」計時完成！請立即測量血壓與心跳並記錄於右側。`);
+  }
+
+  _updateTimerUI() {
+    const step = this.getCurrentStep();
+    const digitsEl = document.getElementById('timerDigits');
+    const subtextEl = document.getElementById('timerSubtext');
+    const progressCircle = document.getElementById('timerCircleProgress');
+    const mobileMiniBadge = document.getElementById('mobileMiniTimerBadge');
+
+    const circumference = 534;
+
+    if (!step.hasTimer) {
+      if (digitsEl) digitsEl.textContent = '手動確認';
+      if (subtextEl) subtextEl.textContent = '完成動作後請點選下一階段';
+      if (mobileMiniBadge) mobileMiniBadge.textContent = step.shortTitle;
+      if (progressCircle) {
+        progressCircle.style.strokeDashoffset = '0';
+        progressCircle.classList.remove('pre-alert', 'done');
+      }
+      return;
+    }
+
+    const mins = Math.floor(this.timerRemainingSec / 60);
+    const secs = this.timerRemainingSec % 60;
+    const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+    if (digitsEl) digitsEl.textContent = formatted;
+    if (mobileMiniBadge) {
+      mobileMiniBadge.textContent = this.timerRemainingSec === 0 ? '✅量血壓' : formatted;
+    }
+
+    if (subtextEl) {
+      if (this.timerRemainingSec === 0) {
+        subtextEl.textContent = '✅ 計時完成！請立即測量血壓';
+      } else if (this.timerRunning) {
+        subtextEl.textContent = step.playMusicDuringTimer
+          ? '等待倒數中 · 輕音樂舒緩放鬆'
+          : '等待倒數計時中...';
+      } else {
+        subtextEl.textContent = '點擊下方主按鈕開始倒數與語音';
+      }
+    }
+
+    if (progressCircle) {
+      const ratio = this.timerTotalSec > 0 ? this.timerRemainingSec / this.timerTotalSec : 1;
+      const offset = circumference * (1 - ratio);
+      progressCircle.style.strokeDashoffset = String(offset);
+
+      progressCircle.classList.remove('pre-alert', 'done');
+      const preAlertPoint = this.quickDemoMode ? 5 : (step.preAlertSec || 15);
+      if (this.timerRemainingSec === 0) {
+        progressCircle.classList.add('done');
+      } else if (this.timerRemainingSec <= preAlertPoint) {
+        progressCircle.classList.add('pre-alert');
+      }
+    }
+  }
+
+  handleEmergencyAbort() {
+    this._stopTimer();
+    this.audioEngine.stopRelaxingMusic();
+
+    this.currentRecord.abortedEarly = true;
+    this.currentRecord.abortReason = '站立期間出現明顯頭暈、眼花或站立不穩';
+
+    const step = this.getCurrentStep();
+    const stageKey = step.recordStageKey || 'stand1';
+    if (this.currentRecord.measurements[stageKey]) {
+      const sym = new Set(this.currentRecord.measurements[stageKey].symptoms.filter(s => s !== 'none'));
+      sym.add('dizziness');
+      sym.add('presyncope');
+      this.currentRecord.measurements[stageKey].symptoms = Array.from(sym);
+    }
+
+    this.audioEngine.speakPrompt({
+      singleText: '緊急安全提示！病患出現不適症狀，請醫護人員立即攙扶病患坐下或平躺休息，避免跌倒，並立即測量目前的血壓與心跳。',
+      singleTwAudioUrl: 'audio/taiwanese/emergency_abort.mp3',
+      chimeType: 'alert'
+    });
+
+    this._renderMeasurementStages();
+    this._updateClinicalAssessment();
+    this.showToast('⚠️ 已啟動病患安全中止程序，請立即協助病患坐下或躺平！');
+  }
+
+  _renderMeasurementStages() {
+    const container = document.getElementById('measurementStagesContainer');
+    if (!container) return;
+
+    const stageConfigs = [
+      {
+        key: 'supine',
+        title: '1. 平躺基準值 (Supine Baseline)',
+        timeTag: '平躺滿 5 分鐘',
+        isBaseline: true
+      },
+      ...(this.includeSittingStep
+        ? [
+            {
+              key: 'sitting',
+              title: '2. 坐姿過渡測量 (Sitting)',
+              timeTag: '坐起 1 分鐘',
+              isBaseline: false
+            }
+          ]
+        : []),
+      {
+        key: 'stand1',
+        title: `${this.includeSittingStep ? '3' : '2'}. 站立第 1 分鐘 (Standing 1 min)`,
+        timeTag: '站立滿 1 分鐘',
+        isBaseline: false
+      },
+      {
+        key: 'stand3',
+        title: `${this.includeSittingStep ? '4' : '3'}. 站立第 3 分鐘 (Standing 3 min)`,
+        timeTag: '站立滿 3 分鐘',
+        isBaseline: false
+      }
+    ];
+
+    container.innerHTML = '';
+
+    stageConfigs.forEach(cfg => {
+      const stageData = this.currentRecord.measurements[cfg.key] || {
+        sbp: '',
+        dbp: '',
+        hr: '',
+        symptoms: ['none']
+      };
+
+      const box = document.createElement('div');
+      box.className = 'stage-record-box';
+      box.id = `record-box-${cfg.key}`;
+      box.setAttribute('data-stage-key', cfg.key);
+
+      box.innerHTML = `
+        <div class="stage-record-header">
+          <div class="stage-record-title">
+            <span>${cfg.title}</span>
+            <span class="stage-time-tag">${cfg.timeTag}</span>
+          </div>
+          <div class="delta-pills-group" id="delta-group-${cfg.key}">
+            ${cfg.isBaseline ? '<span class="delta-pill">基準比較點 (Baseline)</span>' : ''}
+          </div>
+        </div>
+
+        <div class="bp-inputs-row">
+          <div class="bp-input-group">
+            <label for="input-${cfg.key}-sbp">收縮壓 (SBP)</label>
+            <div class="bp-input-wrapper">
+              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" id="input-${cfg.key}-sbp" min="40" max="280" placeholder="124" value="${stageData.sbp}" data-stage="${cfg.key}" data-field="sbp" />
+              <span class="bp-unit">mmHg</span>
+            </div>
+          </div>
+
+          <div class="bp-input-group">
+            <label for="input-${cfg.key}-dbp">舒張壓 (DBP)</label>
+            <div class="bp-input-wrapper">
+              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" id="input-${cfg.key}-dbp" min="20" max="180" placeholder="76" value="${stageData.dbp}" data-stage="${cfg.key}" data-field="dbp" />
+              <span class="bp-unit">mmHg</span>
+            </div>
+          </div>
+
+          <div class="bp-input-group">
+            <label for="input-${cfg.key}-hr">心跳 (HR)</label>
+            <div class="bp-input-wrapper">
+              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" id="input-${cfg.key}-hr" min="30" max="220" placeholder="72" value="${stageData.hr}" data-stage="${cfg.key}" data-field="hr" />
+              <span class="bp-unit">bpm</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="symptoms-row" id="symptoms-row-${cfg.key}">
+          <span class="symptoms-label">伴隨症狀：</span>
+        </div>
+      `;
+
+      const symptomsRow = box.querySelector(`#symptoms-row-${cfg.key}`);
+      (window.OH_SYMPTOM_OPTIONS || []).forEach(opt => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        const isSelected = (stageData.symptoms || []).includes(opt.id);
+        chip.className = 'symptom-chip';
+        if (isSelected) {
+          chip.classList.add(opt.isNormal ? 'selected-normal' : 'selected-symptom');
+        }
+        chip.textContent = opt.label;
+
+        chip.addEventListener('click', () => {
+          this._toggleStageSymptom(cfg.key, opt.id);
+        });
+
+        symptomsRow.appendChild(chip);
+      });
+
+      container.appendChild(box);
+    });
+
+    const inputs = container.querySelectorAll('input[type="number"]');
+    inputs.forEach((input, idx) => {
+      input.addEventListener('input', (e) => {
+        const stageKey = e.target.getAttribute('data-stage');
+        const field = e.target.getAttribute('data-field');
+        if (this.currentRecord.measurements[stageKey]) {
+          this.currentRecord.measurements[stageKey][field] = e.target.value;
+          this._updateClinicalAssessment();
+        }
+      });
+
+      // 手機／平板鍵盤按下「下一項 / Enter」時自動跳至下一個輸入框 (SBP -> DBP -> HR)
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const field = input.getAttribute('data-field');
+          if (field === 'hr') {
+            input.blur();
+          } else if (inputs[idx + 1]) {
+            inputs[idx + 1].focus();
+          }
+        }
+      });
+    });
+
+    const curStep = this.getCurrentStep();
+    this._highlightActiveRecordBox(curStep?.recordStageKey);
+  }
+
+  _toggleStageSymptom(stageKey, symptomId) {
+    const stage = this.currentRecord.measurements[stageKey];
+    if (!stage) return;
+
+    let current = Array.isArray(stage.symptoms) ? [...stage.symptoms] : ['none'];
+
+    if (symptomId === 'none') {
+      current = ['none'];
+    } else {
+      current = current.filter(id => id !== 'none');
+      if (current.includes(symptomId)) {
+        current = current.filter(id => id !== symptomId);
+        if (current.length === 0) current = ['none'];
+      } else {
+        current.push(symptomId);
+      }
+    }
+
+    stage.symptoms = current;
+    this._renderMeasurementStages();
+    this._updateClinicalAssessment();
+  }
+
+  _highlightActiveRecordBox(stageKey, focusInput = false) {
+    document.querySelectorAll('.stage-record-box').forEach(box => {
+      box.classList.remove('active-focus');
+    });
+    if (!stageKey) return;
+
+    const targetBox = document.getElementById(`record-box-${stageKey}`);
+    if (targetBox) {
+      targetBox.classList.add('active-focus');
+      if (focusInput) {
+        const firstInput = targetBox.querySelector('input');
+        if (firstInput) firstInput.focus();
+      }
+    }
+  }
+
+  _updateClinicalAssessment() {
+    const evalRes = window.OHClinicalEvaluator.evaluateRecord(this.currentRecord);
+
+    const stageEvalMap = {
+      sitting: evalRes.sittingEval,
+      stand1: evalRes.stand1Eval,
+      stand3: evalRes.stand3Eval
+    };
+
+    Object.entries(stageEvalMap).forEach(([key, stEval]) => {
+      const groupEl = document.getElementById(`delta-group-${key}`);
+      const boxEl = document.getElementById(`record-box-${key}`);
+      if (!groupEl || !stEval) return;
+
+      if (boxEl) {
+        boxEl.classList.toggle('positive-alert', Boolean(stEval.isStagePositive));
+      }
+
+      const sbpText = window.OHClinicalEvaluator.formatDelta(stEval.deltaSbp, 'mmHg');
+      const dbpText = window.OHClinicalEvaluator.formatDelta(stEval.deltaDbp, 'mmHg');
+      const hrText = window.OHClinicalEvaluator.formatDelta(stEval.deltaHr, 'bpm');
+
+      groupEl.innerHTML = `
+        <span class="delta-pill ${stEval.sbpDropMet ? 'drop-positive' : ''}">
+          ΔSBP: ${sbpText} ${stEval.sbpDropMet ? '⚠️(降≥20)' : ''}
+        </span>
+        <span class="delta-pill ${stEval.dbpDropMet ? 'drop-positive' : ''}">
+          ΔDBP: ${dbpText} ${stEval.dbpDropMet ? '⚠️(降≥10)' : ''}
+        </span>
+        <span class="delta-pill">
+          ΔHR: ${hrText}
+        </span>
+      `;
+    });
+
+    const banner = document.getElementById('clinicalAssessmentBanner');
+    const headlineEl = document.getElementById('assessmentHeadline');
+    const summaryEl = document.getElementById('assessmentSummary');
+    const notesListEl = document.getElementById('assessmentNotesList');
+
+    if (banner) {
+      banner.className = `assessment-banner status-${evalRes.status}`;
+    }
+    if (headlineEl) {
+      const iconMap = {
+        pending: '🩺',
+        normal: '✅',
+        positive: '🚨',
+        symptomatic_borderline: '⚠️'
+      };
+      headlineEl.textContent = `${iconMap[evalRes.status] || '🩺'} ${evalRes.headline}`;
+    }
+    if (summaryEl) {
+      summaryEl.textContent = evalRes.summaryText;
+    }
+    if (notesListEl) {
+      notesListEl.innerHTML = '';
+      (evalRes.clinicalNotes || []).forEach(note => {
+        const li = document.createElement('li');
+        li.textContent = note;
+        notesListEl.appendChild(li);
+      });
+    }
+  }
+
+  _bindRecordFormInputs() {
+    const fieldMap = [
+      { id: 'patientChartId', key: 'chartId' },
+      { id: 'patientName', key: 'name' },
+      { id: 'patientAge', key: 'age' },
+      { id: 'patientGender', key: 'gender' },
+      { id: 'patientArm', key: 'arm' },
+      { id: 'patientCuffSize', key: 'cuffSize' },
+      { id: 'patientNotes', key: 'notes' }
+    ];
+
+    fieldMap.forEach(({ id, key }) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', (e) => {
+          this.currentRecord.patient[key] = e.target.value;
+        });
+      }
+    });
+
+    const measuredAtInput = document.getElementById('patientMeasuredAt');
+    if (measuredAtInput) {
+      measuredAtInput.addEventListener('input', (e) => {
+        this.currentRecord.measuredAtInput = e.target.value;
+        this.currentRecord.measuredAt = (e.target.value || '').replace('T', ' ');
+      });
+    }
+
+    const loadDemoCaseBtn = document.getElementById('loadDemoCaseBtn');
+    if (loadDemoCaseBtn) {
+      loadDemoCaseBtn.addEventListener('click', () => {
+        this.currentRecord.patient = {
+          chartId: 'TW-880412',
+          name: '林○雄 (範例病患)',
+          age: '74',
+          gender: '男',
+          arm: '左手 (Left Arm)',
+          cuffSize: '標準成人壓脈帶 (Standard)',
+          notes: '主訴近兩週早晨起床或從沙發站起時常感頭暈眼花。'
+        };
+        this.currentRecord.measurements.supine = {
+          sbp: '138',
+          dbp: '82',
+          hr: '68',
+          symptoms: ['none']
+        };
+        this.currentRecord.measurements.stand1 = {
+          sbp: '112',
+          dbp: '70',
+          hr: '76',
+          symptoms: ['dizziness', 'lightheaded']
+        };
+        this.currentRecord.measurements.stand3 = {
+          sbp: '108',
+          dbp: '68',
+          hr: '78',
+          symptoms: ['dizziness', 'blurred_vision']
+        };
+        this._syncPatientFormFromModel();
+        this._renderMeasurementStages();
+        this._updateClinicalAssessment();
+        this.showToast('📋 已帶入典型「姿勢性低血壓陽性」臨床範例數據');
+      });
+    }
+
+    const resetFormBtn = document.getElementById('resetFormBtn');
+    if (resetFormBtn) {
+      resetFormBtn.addEventListener('click', () => {
+        this.currentRecord = this._createFreshRecord();
+        this.completedStepIds.clear();
+        this._syncPatientFormFromModel();
+        this._loadStep(0, { autoSpeak: false });
+        this._renderMeasurementStages();
+        this._updateClinicalAssessment();
+        this.showToast('🔄 已開啟空白測量表單');
+      });
+    }
+
+    const saveRecordBtn = document.getElementById('saveRecordBtn');
+    if (saveRecordBtn) {
+      saveRecordBtn.addEventListener('click', () => {
+        const saved = window.OHStorageManager.saveRecord(this.currentRecord);
+        this.currentRecord.id = saved.id;
+        this._refreshHistoryTable();
+        this.showToast('💾 測量紀錄已成功儲存至本機歷史紀錄！');
+      });
+    }
+
+    const copyClinicalNoteBtn = document.getElementById('copyClinicalNoteBtn');
+    if (copyClinicalNoteBtn) {
+      copyClinicalNoteBtn.addEventListener('click', () => {
+        const noteText = window.OHClinicalEvaluator.generateClinicalNote(this.currentRecord);
+        navigator.clipboard.writeText(noteText).then(() => {
+          this.showToast('📋 已複製臨床病歷摘要文字！可直接貼上至醫院病歷系統 (HIS)');
+        }).catch(() => {
+          const ta = document.createElement('textarea');
+          ta.value = noteText;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          this.showToast('📋 已複製臨床病歷摘要文字！');
+        });
+      });
+    }
+
+    const printReportBtn = document.getElementById('printReportBtn');
+    if (printReportBtn) {
+      printReportBtn.addEventListener('click', () => {
+        window.print();
+      });
+    }
+
+    const exportCurrentCsvBtn = document.getElementById('exportCurrentCsvBtn');
+    if (exportCurrentCsvBtn) {
+      exportCurrentCsvBtn.addEventListener('click', () => {
+        const all = window.OHStorageManager.getAllRecords();
+        const listToExport = all.length > 0 ? all : [this.currentRecord];
+        window.OHStorageManager.exportRecordsToCSV(listToExport);
+        this.showToast('📊 已匯出 CSV 報表（支援台灣 Excel 直接開啟）');
+      });
+    }
+  }
+
+  _syncPatientFormFromModel() {
+    const p = this.currentRecord.patient || {};
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val ?? '';
+    };
+    setVal('patientChartId', p.chartId);
+    setVal('patientName', p.name);
+    setVal('patientAge', p.age);
+    setVal('patientGender', p.gender);
+    setVal('patientArm', p.arm || '左手 (Left Arm)');
+    setVal('patientCuffSize', p.cuffSize || '標準成人壓脈帶 (Standard)');
+    setVal('patientNotes', p.notes);
+    setVal('patientMeasuredAt', this.currentRecord.measuredAtInput);
+  }
+
+  _bindSettingsControls() {
+    const twVoiceSelect = document.getElementById('twVoiceSelect');
+    if (twVoiceSelect) {
+      twVoiceSelect.addEventListener('change', (e) => {
+        this.audioEngine.selectedVoiceURI = e.target.value;
+      });
+    }
+
+    const speechRateInput = document.getElementById('speechRateInput');
+    const speechRateVal = document.getElementById('speechRateVal');
+    if (speechRateInput) {
+      speechRateInput.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        this.audioEngine.speechRate = val;
+        if (speechRateVal) speechRateVal.textContent = `${val.toFixed(2)}x`;
+      });
+    }
+
+    // 1. 台語獨立音量滑桿（主畫面快速滑桿 + 設定頁滑桿雙向同步，最高 400%）
+    const taiwaneseVolInput = document.getElementById('taiwaneseVolInput');
+    const taiwaneseVolVal = document.getElementById('taiwaneseVolVal');
+    const quickTwVolInput = document.getElementById('quickTwVolInput');
+    const quickTwVolVal = document.getElementById('quickTwVolVal');
+
+    const syncTwVol = (val) => {
+      const v = parseFloat(val);
+      this.audioEngine.setTaiwaneseVolume(v);
+      const pctText = `${Math.round(v * 100)}%`;
+      if (taiwaneseVolInput && parseFloat(taiwaneseVolInput.value) !== v) taiwaneseVolInput.value = v;
+      if (quickTwVolInput && parseFloat(quickTwVolInput.value) !== v) quickTwVolInput.value = v;
+      if (taiwaneseVolVal) taiwaneseVolVal.textContent = pctText;
+      if (quickTwVolVal) quickTwVolVal.textContent = pctText;
+    };
+
+    if (taiwaneseVolInput) taiwaneseVolInput.addEventListener('input', (e) => syncTwVol(e.target.value));
+    if (quickTwVolInput) quickTwVolInput.addEventListener('input', (e) => syncTwVol(e.target.value));
+
+    // 2. 國語獨立音量滑桿（主畫面快速滑桿 + 設定頁滑桿雙向同步）
+    const speechVolInput = document.getElementById('speechVolInput');
+    const speechVolVal = document.getElementById('speechVolVal');
+    const quickZhVolInput = document.getElementById('quickZhVolInput');
+    const quickZhVolVal = document.getElementById('quickZhVolVal');
+
+    const syncZhVol = (val) => {
+      const v = parseFloat(val);
+      this.audioEngine.setMandarinVolume(v);
+      const pctText = `${Math.round(v * 100)}%`;
+      if (speechVolInput && parseFloat(speechVolInput.value) !== v) speechVolInput.value = v;
+      if (quickZhVolInput && parseFloat(quickZhVolInput.value) !== v) quickZhVolInput.value = v;
+      if (speechVolVal) speechVolVal.textContent = pctText;
+      if (quickZhVolVal) quickZhVolVal.textContent = pctText;
+    };
+
+    if (speechVolInput) speechVolInput.addEventListener('input', (e) => syncZhVol(e.target.value));
+    if (quickZhVolInput) quickZhVolInput.addEventListener('input', (e) => syncZhVol(e.target.value));
+
+    const musicStyleSelect = document.getElementById('musicStyleSelect');
+    if (musicStyleSelect) {
+      musicStyleSelect.addEventListener('change', (e) => {
+        const wasPlaying = this.audioEngine.isMusicPlaying;
+        this.audioEngine.stopRelaxingMusic();
+        this.audioEngine.musicStyle = e.target.value;
+        if (wasPlaying) {
+          this.audioEngine.startRelaxingMusic();
+        }
+      });
+    }
+
+    const musicVolInput = document.getElementById('musicVolInput');
+    const musicVolVal = document.getElementById('musicVolVal');
+    if (musicVolInput) {
+      musicVolInput.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        this.audioEngine.setMusicVolume(val);
+        if (musicVolVal) musicVolVal.textContent = `${Math.round(val * 100)}%`;
+      });
+    }
+
+    const customMusicFileInput = document.getElementById('customMusicFileInput');
+    if (customMusicFileInput) {
+      customMusicFileInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          this.audioEngine.setCustomMusicFile(file);
+          if (musicStyleSelect) musicStyleSelect.value = 'custom_mp3';
+          this.showToast(`🎵 已載入自訂輕音樂：${file.name}`);
+        }
+      });
+    }
+
+    const durationBindings = [
+      { id: 'durSupineRest', key: 'supine_rest' },
+      { id: 'durSitting', key: 'sitting_transition' },
+      { id: 'durStand1', key: 'stand_1min' },
+      { id: 'durStand3', key: 'stand_3min' }
+    ];
+
+    durationBindings.forEach(({ id, key }) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('change', (e) => {
+          const sec = Math.max(5, parseInt(e.target.value, 10) || 60);
+          this.customDurations[key] = sec;
+          const step = this.getCurrentStep();
+          if (step.id === key && !this.timerRunning) {
+            this.timerTotalSec = this.getStepDurationSec(step);
+            this.timerRemainingSec = this.timerTotalSec;
+            this._updateTimerUI();
+          }
+        });
+      }
+    });
+  }
+
+  _bindHistoryControls() {
+    const searchInput = document.getElementById('historySearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        this._refreshHistoryTable();
+      });
+    }
+
+    const exportAllBtn = document.getElementById('historyExportCsvBtn');
+    if (exportAllBtn) {
+      exportAllBtn.addEventListener('click', () => {
+        const records = window.OHStorageManager.getAllRecords();
+        if (records.length === 0) {
+          this.showToast('目前尚無已儲存的歷史紀錄可匯出');
+          return;
+        }
+        window.OHStorageManager.exportRecordsToCSV(records);
+        this.showToast(`📊 已匯出全部 ${records.length} 筆歷史紀錄 CSV`);
+      });
+    }
+  }
+
+  _refreshHistoryTable() {
+    const allRecords = window.OHStorageManager.getAllRecords();
+    const countBadge = document.getElementById('historyCountBadge');
+    if (countBadge) countBadge.textContent = String(allRecords.length);
+
+    const tbody = document.getElementById('historyTableBody');
+    if (!tbody) return;
+
+    const query = (document.getElementById('historySearchInput')?.value || '').trim().toLowerCase();
+    const filtered = allRecords.filter(r => {
+      if (!query) return true;
+      const name = (r.patient?.name || '').toLowerCase();
+      const chartId = (r.patient?.chartId || '').toLowerCase();
+      return name.includes(query) || chartId.includes(query);
+    });
+
+    tbody.innerHTML = '';
+
+    if (filtered.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="8" style="text-align:center; padding: 2rem; color: #64748b;">
+            尚無符合條件的儲存紀錄。在主畫面完成測量後點擊「💾 儲存本次紀錄」即可在此查詢與匯出。
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    filtered.forEach(rec => {
+      const p = rec.patient || {};
+      const m = rec.measurements || {};
+      const evalRes = window.OHClinicalEvaluator.evaluateRecord(rec);
+
+      const tagClass =
+        evalRes.status === 'positive'
+          ? 'tag-positive'
+          : evalRes.status === 'symptomatic_borderline'
+          ? 'tag-borderline'
+          : 'tag-normal';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${rec.measuredAt || '-'}</td>
+        <td><strong>${p.chartId || '-'}</strong></td>
+        <td>${p.name || '-'}${p.age ? ` (${p.age}歲)` : ''}</td>
+        <td>${m.supine?.sbp || '--'}/${m.supine?.dbp || '--'} <small>(${m.supine?.hr || '--'})</small></td>
+        <td>${m.stand1?.sbp || '--'}/${m.stand1?.dbp || '--'} <small>(Δ${evalRes.stand1Eval?.deltaSbp ?? '--'})</small></td>
+        <td>${m.stand3?.sbp || '--'}/${m.stand3?.dbp || '--'} <small>(Δ${evalRes.stand3Eval?.deltaSbp ?? '--'})</small></td>
+        <td><span class="status-tag ${tagClass}">${evalRes.isPositiveOH ? '陽性 (OH+)' : '陰性 (OH-)'}</span></td>
+        <td>
+          <button type="button" class="speak-single-btn load-rec-btn">載入檢視</button>
+          <button type="button" class="speak-single-btn del-rec-btn" style="color:#dc2626;">刪除</button>
+        </td>
+      `;
+
+      tr.querySelector('.load-rec-btn').addEventListener('click', () => {
+        this.currentRecord = JSON.parse(JSON.stringify(rec));
+        this._syncPatientFormFromModel();
+        this._renderMeasurementStages();
+        this._updateClinicalAssessment();
+        document.querySelector('[data-tab="tab-workspace"]')?.click();
+        this.showToast(`📂 已載入病患「${p.name || p.chartId || '未命名'}」的測量紀錄`);
+      });
+
+      tr.querySelector('.del-rec-btn').addEventListener('click', () => {
+        window.OHStorageManager.deleteRecord(rec.id);
+        this._refreshHistoryTable();
+        this.showToast('🗑️ 已刪除該筆紀錄');
+      });
+
+      tbody.appendChild(tr);
+    });
+  }
+
+  showToast(message) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = 'toast-msg';
+    toast.textContent = message;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transition = 'opacity 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, 3400);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  window.ohApp = new OHAppController();
+});
