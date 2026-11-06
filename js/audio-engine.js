@@ -17,8 +17,9 @@ class OHAudioEngine {
     this.speechEnabled = true;
 
     // 獨立音量控制：國語預設 0.65 (65%) 避免過大聲，台語預設 2.20 (220% 增幅放大) 補足原音檔響度
-    this.mandarinVolume = 0.65;   // 範圍 0.0 ~ 1.0
-    this.taiwaneseVolume = 2.20;  // 範圍 0.0 ~ 3.5 (透過 Web Audio GainNode 與 Compressor 放大不破音)
+    // 兩者皆透過 Web Audio API 專屬 GainNode 即時控制，拖曳滑桿時即使在播報中也會立即改變音量
+    this.mandarinVolume = 0.65;   // 範圍 0.0 ~ 2.0 (0% 靜音 ~ 200% 增幅)
+    this.taiwaneseVolume = 2.20;  // 範圍 0.0 ~ 4.0 (0% 靜音 ~ 400% 增幅)
 
     this.speechRate = 0.96;
     this.languageMode = 'patient_tw_staff_zh';
@@ -27,7 +28,8 @@ class OHAudioEngine {
     this.allVoices = [];
     this.isSpeaking = false;
 
-    // 台語專用增幅節點與防破音動態壓縮器
+    // 國語與台語各自獨立的 Web Audio 增幅節點與防破音動態壓縮器
+    this.mandarinGainNode = null;
     this.taiwaneseGainNode = null;
     this.taiwaneseCompressor = null;
 
@@ -67,20 +69,23 @@ class OHAudioEngine {
       this.masterMusicGain.gain.setValueAtTime(this.musicVolume, this.audioCtx.currentTime);
       this.masterMusicGain.connect(this.audioCtx.destination);
 
-      // 2. 台語語音專用增幅放大器 (GainNode -> DynamicsCompressor -> Destination)
-      // 突破 HTML5 Audio 100% 音量限制，可放大至 350% 且經由 Compressor 防止峰值破音
-      this.taiwaneseGainNode = this.audioCtx.createGain();
-      this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume, this.audioCtx.currentTime);
-
+      // 2. 語音防破音動態壓縮器 + 台語與國語各自獨立的 GainNode
+      // 徹底解決瀏覽器內建 SpeechSynthesisUtterance.volume 無法即時調整或被系統語音忽略的問題
       this.taiwaneseCompressor = this.audioCtx.createDynamicsCompressor();
       this.taiwaneseCompressor.threshold.setValueAtTime(-14, this.audioCtx.currentTime);
       this.taiwaneseCompressor.knee.setValueAtTime(18, this.audioCtx.currentTime);
       this.taiwaneseCompressor.ratio.setValueAtTime(4, this.audioCtx.currentTime);
       this.taiwaneseCompressor.attack.setValueAtTime(0.003, this.audioCtx.currentTime);
       this.taiwaneseCompressor.release.setValueAtTime(0.20, this.audioCtx.currentTime);
-
-      this.taiwaneseGainNode.connect(this.taiwaneseCompressor);
       this.taiwaneseCompressor.connect(this.audioCtx.destination);
+
+      this.taiwaneseGainNode = this.audioCtx.createGain();
+      this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume, this.audioCtx.currentTime);
+      this.taiwaneseGainNode.connect(this.taiwaneseCompressor);
+
+      this.mandarinGainNode = this.audioCtx.createGain();
+      this.mandarinGainNode.gain.setValueAtTime(this.mandarinVolume, this.audioCtx.currentTime);
+      this.mandarinGainNode.connect(this.taiwaneseCompressor);
     }
     if (this.audioCtx.state === 'suspended') {
       this.audioCtx.resume();
@@ -88,21 +93,29 @@ class OHAudioEngine {
   }
 
   /**
-   * 設定國語語音音量 (0.0 ~ 1.0)
+   * 設定國語語音音量 (0.0 ~ 2.0，透過 Web Audio GainNode 即時生效，播報中拖曳滑桿亦立即改變音量)
    */
   setMandarinVolume(vol) {
-    this.mandarinVolume = Math.max(0, Math.min(1.0, parseFloat(vol) || 0));
+    const parsed = parseFloat(vol);
+    this.mandarinVolume = Math.max(0, Math.min(2.0, Number.isNaN(parsed) ? 0.65 : parsed));
+    if (this.audioCtx && this.mandarinGainNode) {
+      this.mandarinGainNode.gain.setValueAtTime(this.mandarinVolume, this.audioCtx.currentTime);
+    }
+    if (this.currentVoiceAudio && this._currentAudioLang === 'zh' && !this._currentAudioConnectedToWebAudio) {
+      this.currentVoiceAudio.volume = Math.min(1.0, this.mandarinVolume);
+    }
   }
 
   /**
    * 設定台語語音音量 (0.0 ~ 4.0，支援最高 400% 增幅放大)
    */
   setTaiwaneseVolume(vol) {
-    this.taiwaneseVolume = Math.max(0, Math.min(4.0, parseFloat(vol) || 0));
+    const parsed = parseFloat(vol);
+    this.taiwaneseVolume = Math.max(0, Math.min(4.0, Number.isNaN(parsed) ? 2.2 : parsed));
     if (this.audioCtx && this.taiwaneseGainNode) {
       this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume, this.audioCtx.currentTime);
     }
-    if (this.currentVoiceAudio && !this._currentAudioConnectedToWebAudio) {
+    if (this.currentVoiceAudio && this._currentAudioLang !== 'zh' && !this._currentAudioConnectedToWebAudio) {
       this.currentVoiceAudio.volume = Math.min(1.0, this.taiwaneseVolume);
     }
   }
@@ -249,7 +262,7 @@ class OHAudioEngine {
   }
 
   /**
-   * 播報雙角色語音提示（支援國語 TTS 與預合成台語 MP3 混搭佇列）
+   * 播報雙角色語音提示（國語與台語皆支援透過 Web Audio API 專屬 GainNode 精準獨立控音）
    */
   speakPrompt({
     stepId = null,
@@ -257,8 +270,11 @@ class OHAudioEngine {
     staffText = '',
     patientTwAudioUrl = '',
     staffTwAudioUrl = '',
+    patientZhAudioUrl = '',
+    staffZhAudioUrl = '',
     singleText = '',
     singleTwAudioUrl = '',
+    singleZhAudioUrl = '',
     chimeType = 'normal',
     roleFilter = 'both',
     forceLang = null
@@ -275,7 +291,7 @@ class OHAudioEngine {
 
     if (stepId && this.customStepVoiceUrls[stepId] && !singleText && !forceLang) {
       setTimeout(() => {
-        this._playQueue([{ type: 'audio', url: this.customStepVoiceUrls[stepId] }], 0);
+        this._playQueue([{ type: 'audio', lang: 'tw', url: this.customStepVoiceUrls[stepId] }], 0);
       }, 480);
       return;
     }
@@ -283,68 +299,66 @@ class OHAudioEngine {
     const queue = [];
     const mode = this.languageMode;
 
-    if (singleText || singleTwAudioUrl) {
+    const pushZhItem = (zhUrl, text, pitch = 1.0, rate = this.speechRate) => {
+      if (zhUrl) {
+        queue.push({ type: 'audio', lang: 'zh', url: zhUrl, fallbackText: text });
+      } else if (text) {
+        queue.push({ type: 'tts', lang: 'zh', text, pitch, rate });
+      }
+    };
+
+    const pushTwItem = (twUrl, fallbackText) => {
+      if (twUrl) {
+        queue.push({ type: 'audio', lang: 'tw', url: twUrl, fallbackText });
+      } else if (fallbackText) {
+        queue.push({ type: 'tts', lang: 'zh', text: fallbackText, pitch: 1.0, rate: this.speechRate });
+      }
+    };
+
+    if (singleText || singleTwAudioUrl || singleZhAudioUrl) {
       const useTw =
         forceLang === 'tw' ||
         (forceLang !== 'zh' && mode === 'all_tw');
 
       if (useTw && singleTwAudioUrl) {
-        queue.push({ type: 'audio', url: singleTwAudioUrl, fallbackText: singleText });
-      } else if (singleText) {
-        queue.push({ type: 'tts', text: singleText, pitch: 1.0, rate: this.speechRate });
+        pushTwItem(singleTwAudioUrl, singleText);
+      } else {
+        pushZhItem(singleZhAudioUrl, singleText, 1.0, this.speechRate);
       }
     } else {
       // 1. 對病患的語音提示
       if (roleFilter === 'both' || roleFilter === 'patient') {
-        if (forceLang === 'tw' && patientTwAudioUrl) {
-          queue.push({ type: 'audio', url: patientTwAudioUrl, fallbackText: patientText });
-        } else if (forceLang === 'zh' && patientText) {
-          queue.push({
-            type: 'tts',
-            text: `病患請注意：${patientText}`,
-            pitch: 1.04,
-            rate: Math.max(0.82, this.speechRate - 0.04)
-          });
+        const patientSpokenZh = patientText ? `病患請注意：${patientText}` : '';
+        if (forceLang === 'tw') {
+          pushTwItem(patientTwAudioUrl, patientSpokenZh);
+        } else if (forceLang === 'zh') {
+          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04));
         } else if (mode === 'patient_tw_staff_zh' || mode === 'all_tw') {
           if (patientTwAudioUrl) {
-            queue.push({ type: 'audio', url: patientTwAudioUrl, fallbackText: patientText });
-          } else if (patientText) {
-            queue.push({ type: 'tts', text: `病患請注意：${patientText}`, pitch: 1.04, rate: this.speechRate });
+            pushTwItem(patientTwAudioUrl, patientSpokenZh);
+          } else {
+            pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, this.speechRate);
           }
         } else if (mode === 'patient_both_staff_zh') {
-          if (patientText) {
-            queue.push({
-              type: 'tts',
-              text: `病患請注意：${patientText}`,
-              pitch: 1.04,
-              rate: Math.max(0.82, this.speechRate - 0.04)
-            });
-          }
+          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04));
           if (patientTwAudioUrl) {
-            queue.push({ type: 'audio', url: patientTwAudioUrl, fallbackText: '' });
+            pushTwItem(patientTwAudioUrl, '');
           }
         } else {
-          if (patientText) {
-            queue.push({
-              type: 'tts',
-              text: `病患請注意：${patientText}`,
-              pitch: 1.04,
-              rate: Math.max(0.82, this.speechRate - 0.04)
-            });
-          }
+          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04));
         }
       }
 
       // 2. 對醫護人員的語音提示
       if (roleFilter === 'both' || roleFilter === 'staff') {
-        if (forceLang === 'tw' && staffTwAudioUrl) {
-          queue.push({ type: 'audio', url: staffTwAudioUrl, fallbackText: staffText });
-        } else if (forceLang === 'zh' && staffText) {
-          queue.push({ type: 'tts', text: staffText, pitch: 0.98, rate: this.speechRate });
+        if (forceLang === 'tw') {
+          pushTwItem(staffTwAudioUrl, staffText);
+        } else if (forceLang === 'zh') {
+          pushZhItem(staffZhAudioUrl, staffText, 0.98, this.speechRate);
         } else if (mode === 'all_tw' && staffTwAudioUrl) {
-          queue.push({ type: 'audio', url: staffTwAudioUrl, fallbackText: staffText });
-        } else if (staffText) {
-          queue.push({ type: 'tts', text: staffText, pitch: 0.98, rate: this.speechRate });
+          pushTwItem(staffTwAudioUrl, staffText);
+        } else {
+          pushZhItem(staffZhAudioUrl, staffText, 0.98, this.speechRate);
         }
       }
     }
@@ -361,7 +375,7 @@ class OHAudioEngine {
   }
 
   /**
-   * 依序執行混合佇列（台語 MP3 透過 Web Audio API GainNode 放大，國語透過 TTS Volume 控制）
+   * 依序執行混合佇列（台語與國語 MP3 皆透過 Web Audio API 專屬 GainNode 即時控音）
    */
   _playQueue(queue, index) {
     if (!this.isSpeaking || index >= queue.length) {
@@ -384,7 +398,7 @@ class OHAudioEngine {
     };
 
     if (item.type === 'audio' && item.url) {
-      this._playBoostedTaiwaneseAudio(item.url, item.fallbackText, proceedNext);
+      this._playBoostedVoiceAudio(item.url, item.lang || 'tw', item.fallbackText, proceedNext);
     } else if (item.type === 'tts' && item.text) {
       this._speakSingleUtterance(item.text, item.pitch, item.rate, proceedNext);
     } else {
@@ -393,10 +407,12 @@ class OHAudioEngine {
   }
 
   /**
-   * 使用 Web Audio API 將台語 MP3 解碼並透過 GainNode 進行增幅放大（突破 100% 音量上限，完美支援 file:// 本機協定）
+   * 使用 Web Audio API 將台語或國語 MP3 解碼並透過各自獨立的 GainNode 控制音量（突破瀏覽器 TTS 限制且支援播報中即時調音量）
    */
-  _playBoostedTaiwaneseAudio(url, fallbackText, onComplete) {
+  _playBoostedVoiceAudio(url, lang = 'tw', fallbackText = '', onComplete = null) {
     this.ensureAudioContext();
+    const isMandarin = lang === 'zh';
+    const targetGainNode = isMandarin ? this.mandarinGainNode : this.taiwaneseGainNode;
 
     const playDecodedBuffer = (arrayBuffer) => {
       if (!this.isSpeaking) return;
@@ -415,15 +431,23 @@ class OHAudioEngine {
             const abs = Math.abs(channelData[i]);
             if (abs > maxPeak) maxPeak = abs;
           }
-          // 將原始音檔峰值拉升至滿載 0.98，並給予 1.35 倍響度補償，再乘以使用者的「台語音量」設定
-          const normGain = Math.min(4.0, (0.98 / maxPeak) * 1.35);
+
+          // 台語給予 1.35 倍基礎響度補償，國語給予標準 0.95 峰值正規化，再連結至各自的 GainNode
+          const normGain = isMandarin
+            ? Math.min(2.0, 0.92 / maxPeak)
+            : Math.min(4.0, (0.98 / maxPeak) * 1.35);
+
           const perClipGain = this.audioCtx.createGain();
           perClipGain.gain.setValueAtTime(normGain, this.audioCtx.currentTime);
 
-          this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume, this.audioCtx.currentTime);
+          if (isMandarin) {
+            this.mandarinGainNode.gain.setValueAtTime(this.mandarinVolume, this.audioCtx.currentTime);
+          } else {
+            this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume, this.audioCtx.currentTime);
+          }
 
           source.connect(perClipGain);
-          perClipGain.connect(this.taiwaneseGainNode);
+          perClipGain.connect(targetGainNode);
 
           this._currentBufferSource = source;
           source.onended = () => {
@@ -433,13 +457,16 @@ class OHAudioEngine {
           source.start(0);
         },
         () => {
-          this._fallbackHtmlAudioPlay(url, fallbackText, onComplete);
+          this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete);
         }
       );
     };
 
-    // 1. 優先從內嵌 Base64 音訊庫解碼（不受 file:// CORS 限制，百分之百可經由 GainNode 放大至 400%）
-    const b64Map = window.OH_TAIWANESE_AUDIO_B64 || {};
+    // 1. 優先從內嵌 Base64 音訊庫解碼（不受 file:// CORS 限制，百分之百可經由 GainNode 即時控制音量）
+    const b64Map = isMandarin
+      ? (window.OH_MANDARIN_AUDIO_B64 || {})
+      : (window.OH_TAIWANESE_AUDIO_B64 || {});
+
     if (b64Map[url]) {
       try {
         const binaryStr = window.atob(b64Map[url]);
@@ -464,38 +491,43 @@ class OHAudioEngine {
       if ((xhr.status === 200 || xhr.status === 0) && xhr.response) {
         playDecodedBuffer(xhr.response);
       } else {
-        this._fallbackHtmlAudioPlay(url, fallbackText, onComplete);
+        this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete);
       }
     };
 
     xhr.onerror = () => {
-      this._fallbackHtmlAudioPlay(url, fallbackText, onComplete);
+      this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete);
     };
 
     xhr.send();
   }
 
   /**
-   * 當瀏覽器因 file:// 安全性限制阻擋 XHR 時，使用 HTML5 Audio + Web Audio MediaElementSource 放大
+   * 當瀏覽器因 file:// 安全性限制阻擋 XHR 時，使用 HTML5 Audio + Web Audio MediaElementSource 控制音量
    */
-  _fallbackHtmlAudioPlay(url, fallbackText, onComplete) {
+  _fallbackHtmlAudioPlay(url, lang = 'tw', fallbackText = '', onComplete = null) {
     if (!this.isSpeaking) return;
+    const isMandarin = lang === 'zh';
     const audio = new Audio(url);
     this.currentVoiceAudio = audio;
+    this._currentAudioLang = lang;
     this._currentAudioConnectedToWebAudio = false;
     audio.playbackRate = Math.max(0.8, Math.min(1.25, this.speechRate));
 
     try {
       this.ensureAudioContext();
       const mediaSource = this.audioCtx.createMediaElementSource(audio);
-      // 額外給 1.6 倍基礎補償乘上台語音量
-      this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume * 1.6, this.audioCtx.currentTime);
-      mediaSource.connect(this.taiwaneseGainNode);
+      if (isMandarin) {
+        this.mandarinGainNode.gain.setValueAtTime(this.mandarinVolume, this.audioCtx.currentTime);
+        mediaSource.connect(this.mandarinGainNode);
+      } else {
+        this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume * 1.6, this.audioCtx.currentTime);
+        mediaSource.connect(this.taiwaneseGainNode);
+      }
       audio.volume = 1.0;
       this._currentAudioConnectedToWebAudio = true;
     } catch (e) {
-      // 若瀏覽器不允許 MediaElementSource，直接將 HTML Audio 設至最大
-      audio.volume = Math.min(1.0, this.taiwaneseVolume);
+      audio.volume = Math.max(0, Math.min(1.0, isMandarin ? this.mandarinVolume : this.taiwaneseVolume));
     }
 
     audio.onended = () => {
@@ -534,8 +566,8 @@ class OHAudioEngine {
     if (voice) {
       utterance.voice = voice;
     }
-    // 使用獨立的「國語音量 (mandarinVolume)」
-    utterance.volume = this.mandarinVolume;
+    // 使用獨立的「國語音量 (mandarinVolume)」，若為 Web Speech API 則安全限制在 0.0 ~ 1.0
+    utterance.volume = Math.max(0, Math.min(1.0, this.mandarinVolume));
     utterance.rate = rate || this.speechRate;
     utterance.pitch = pitch || 1.0;
 

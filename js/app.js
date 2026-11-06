@@ -220,8 +220,10 @@ class OHAppController {
         this.audioEngine.speakPrompt({
           patientText: '您好，這是台灣國語語音測試，等一下測量血壓時請放輕鬆。',
           patientTwAudioUrl: 'audio/taiwanese/test_voice.mp3',
+          patientZhAudioUrl: 'audio/mandarin/test_voice_patient.mp3',
           staffText: '醫護人員您好，台語與國語雙語提示及輕音樂音量自動調節功能運作正常。',
           staffTwAudioUrl: 'audio/taiwanese/prep_staff.mp3',
+          staffZhAudioUrl: 'audio/mandarin/test_voice_staff.mp3',
           chimeType: 'normal'
         });
       });
@@ -284,6 +286,7 @@ class OHAppController {
           stepId: step.id,
           patientText: step.voicePrompt.patient,
           patientTwAudioUrl: step.taiwaneseAudio?.patient || '',
+          patientZhAudioUrl: step.mandarinAudio?.patient || '',
           roleFilter: 'patient',
           forceLang: 'tw'
         });
@@ -298,6 +301,7 @@ class OHAppController {
           stepId: step.id,
           patientText: step.voicePrompt.patient,
           patientTwAudioUrl: step.taiwaneseAudio?.patient || '',
+          patientZhAudioUrl: step.mandarinAudio?.patient || '',
           roleFilter: 'patient',
           forceLang: 'zh'
         });
@@ -313,6 +317,7 @@ class OHAppController {
           stepId: step.id,
           staffText: step.voicePrompt.staff,
           staffTwAudioUrl: step.taiwaneseAudio?.staff || '',
+          staffZhAudioUrl: step.mandarinAudio?.staff || '',
           roleFilter: 'staff',
           forceLang: 'zh'
         });
@@ -327,6 +332,7 @@ class OHAppController {
           stepId: step.id,
           staffText: step.voicePrompt.staff,
           staffTwAudioUrl: step.taiwaneseAudio?.staff || '',
+          staffZhAudioUrl: step.mandarinAudio?.staff || '',
           roleFilter: 'staff',
           forceLang: 'tw'
         });
@@ -376,10 +382,13 @@ class OHAppController {
     }
     if (jumpToRecordBtn) {
       jumpToRecordBtn.addEventListener('click', () => {
+        if (jumpToRecordBtn.disabled) return;
         const step = this.getCurrentStep();
-        const targetStageKey = step.recordStageKey || (step.id === 'supine_rest' ? 'supine' : 'stand1');
+        const targetStageKey = step.recordStageKey || (step.id === 'supine_rest' ? 'supine' : null);
         this.switchMobilePartView('part2');
-        this._highlightActiveRecordBox(targetStageKey, true);
+        if (targetStageKey) {
+          this._highlightActiveRecordBox(targetStageKey, true);
+        }
       });
     }
     if (jumpBackToGuidanceBtn) {
@@ -424,6 +433,8 @@ class OHAppController {
       staffText: step.voicePrompt?.staff || '',
       patientTwAudioUrl: step.taiwaneseAudio?.patient || '',
       staffTwAudioUrl: step.taiwaneseAudio?.staff || '',
+      patientZhAudioUrl: step.mandarinAudio?.patient || '',
+      staffZhAudioUrl: step.mandarinAudio?.staff || '',
       chimeType: 'normal'
     });
   }
@@ -506,6 +517,7 @@ class OHAppController {
     const primaryBtn = document.getElementById('primaryStepActionBtn');
     const pauseBtn = document.getElementById('pauseResumeTimerBtn');
     const nextBtn = document.getElementById('nextStepBtn');
+    const jumpToRecordBtn = document.getElementById('jumpToRecordBtn');
 
     if (primaryBtn) {
       if (step.hasTimer) {
@@ -522,6 +534,20 @@ class OHAppController {
 
     if (nextBtn) {
       nextBtn.disabled = index >= steps.length - 1;
+    }
+
+    // 控制「前往輸入血壓與心跳數值」按鈕：在步驟一（測量前準備）及無需測量的靜息階段設為不可啟動 (disabled)
+    if (jumpToRecordBtn) {
+      if (step.recordStageKey) {
+        jumpToRecordBtn.disabled = false;
+        jumpToRecordBtn.innerHTML = `📝 前往輸入「${step.shortTitle}」血壓與心跳 ➔`;
+      } else if (step.id === 'complete') {
+        jumpToRecordBtn.disabled = false;
+        jumpToRecordBtn.innerHTML = `📊 前往檢視臨床判讀結果與儲存紀錄 ➔`;
+      } else {
+        jumpToRecordBtn.disabled = true;
+        jumpToRecordBtn.innerHTML = `📝 本階段（${step.shortTitle}）無需記錄血壓與心跳`;
+      }
     }
 
     this._highlightActiveRecordBox(step.recordStageKey);
@@ -574,6 +600,7 @@ class OHAppController {
         this.audioEngine.speakPrompt({
           singleText: step.voicePrompt.preAlert,
           singleTwAudioUrl: step.taiwaneseAudio?.preAlert || 'audio/taiwanese/pre_alert.mp3',
+          singleZhAudioUrl: step.mandarinAudio?.preAlert || '',
           chimeType: 'alert'
         });
       }
@@ -625,11 +652,17 @@ class OHAppController {
       this.audioEngine.speakPrompt({
         singleText: step.voicePrompt.timerDone,
         singleTwAudioUrl: step.taiwaneseAudio?.timerDone || 'audio/taiwanese/timer_done.mp3',
+        singleZhAudioUrl: step.mandarinAudio?.timerDone || '',
         chimeType: 'done'
       });
     }
 
+    const jumpToRecordBtn = document.getElementById('jumpToRecordBtn');
     if (step.id === 'supine_rest') {
+      if (jumpToRecordBtn) {
+        jumpToRecordBtn.disabled = false;
+        jumpToRecordBtn.innerHTML = `📝 前往輸入「平躺基準值」血壓與心跳 ➔`;
+      }
       this._highlightActiveRecordBox('supine', true);
     } else if (step.recordStageKey) {
       this._highlightActiveRecordBox(step.recordStageKey, true);
@@ -713,6 +746,7 @@ class OHAppController {
     this.audioEngine.speakPrompt({
       singleText: '緊急安全提示！病患出現不適症狀，請醫護人員立即攙扶病患坐下或平躺休息，避免跌倒，並立即測量目前的血壓與心跳。',
       singleTwAudioUrl: 'audio/taiwanese/emergency_abort.mp3',
+      singleZhAudioUrl: 'audio/mandarin/emergency_abort.mp3',
       chimeType: 'alert'
     });
 
@@ -808,9 +842,12 @@ class OHAppController {
           </div>
         </div>
 
-        <div class="symptoms-row" id="symptoms-row-${cfg.key}">
-          <span class="symptoms-label">伴隨症狀：</span>
-        </div>
+        <details class="symptoms-details ${(stageData.symptoms || []).some(s => s !== 'none') ? 'has-active-symptom' : ''}" id="symptoms-details-${cfg.key}" ${(stageData.symptoms || []).some(s => s !== 'none') ? 'open' : ''}>
+          <summary>
+            <span>${(stageData.symptoms || []).some(s => s !== 'none') ? '⚠️ 伴隨症狀：' : '🟢 伴隨症狀：'}${window.OHClinicalEvaluator.formatSymptomsText(stageData.symptoms)}</span>
+          </summary>
+          <div class="symptoms-row" id="symptoms-row-${cfg.key}"></div>
+        </details>
       `;
 
       const symptomsRow = box.querySelector(`#symptoms-row-${cfg.key}`);

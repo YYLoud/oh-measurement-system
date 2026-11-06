@@ -632,6 +632,109 @@ body {
   border-color: #34d399;
 }
 
+/* 通用簡潔摺疊面板 (Collapsible Drawer) */
+.collapsible-drawer {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.collapsible-drawer > summary {
+  padding: 0.55rem 0.85rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  background: #f1f5f9;
+}
+
+.collapsible-drawer > summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-drawer > summary::after {
+  content: "▾ 展開";
+  font-size: 0.76rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.collapsible-drawer[open] > summary {
+  border-bottom: 1px solid #cbd5e1;
+  background: #e6f2ff;
+  color: #0b4f8c;
+}
+
+.collapsible-drawer[open] > summary::after {
+  content: "▴ 收合";
+}
+
+.collapsible-drawer-body {
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  background: #ffffff;
+}
+
+/* 症狀智慧摺疊列 */
+.symptoms-details {
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.35rem 0.65rem;
+}
+
+.symptoms-details.has-active-symptom {
+  border: 1px solid #fdba74;
+  background: #fff7ed;
+}
+
+.symptoms-details > summary {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.symptoms-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.symptoms-details > summary::after {
+  content: "▾ 點擊勾選症狀";
+  font-size: 0.74rem;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+.symptoms-details[open] > summary::after {
+  content: "▴ 收合";
+}
+
+.symptoms-details.has-active-symptom > summary {
+  color: #c2410c;
+}
+
+.symptoms-details .symptoms-row {
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
 /* 獨立快速音量滑桿列 (整合於階段主控台內) */
 .stage-playback-controls .quick-volume-sliders {
   margin-bottom: 0;
@@ -896,11 +999,18 @@ body {
 }
 
 .btn-jump-record {
-  display: none;
+  display: inline-flex;
   background: var(--teal-light);
   color: #065f46;
   border: 1px solid #6ee7b7;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+}
+
+.btn-jump-record:disabled {
+  background: #f1f5f9;
+  color: var(--text-muted);
+  border-color: #cbd5e1;
+  opacity: 0.65;
 }
 
 .btn-warning-abort {
@@ -1567,6 +1677,11 @@ body {
   .workspace-grid.mobile-view-part1 .record-column,
   .workspace-grid.mobile-view-part2 .record-column {
     display: block !important;
+  }
+
+  /* 列印時自動顯示摺疊抽屜內的病患基本資料 */
+  .record-column details.collapsible-drawer > .collapsible-drawer-body {
+    display: flex !important;
   }
 
   .main-container {

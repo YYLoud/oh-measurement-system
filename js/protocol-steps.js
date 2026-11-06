@@ -24,6 +24,10 @@ const OH_PROTOCOL_STEPS = [
     taiwaneseAudio: {
       patient: 'audio/taiwanese/prep_patient.mp3',
       staff: 'audio/taiwanese/prep_staff.mp3'
+    },
+    mandarinAudio: {
+      patient: 'audio/mandarin/prep_patient.mp3',
+      staff: 'audio/mandarin/prep_staff.mp3'
     }
   },
   {
@@ -51,6 +55,12 @@ const OH_PROTOCOL_STEPS = [
       staff: 'audio/taiwanese/supine_rest_staff.mp3',
       preAlert: 'audio/taiwanese/pre_alert.mp3',
       timerDone: 'audio/taiwanese/timer_done.mp3'
+    },
+    mandarinAudio: {
+      patient: 'audio/mandarin/supine_rest_patient.mp3',
+      staff: 'audio/mandarin/supine_rest_staff.mp3',
+      preAlert: 'audio/mandarin/supine_rest_pre_alert.mp3',
+      timerDone: 'audio/mandarin/supine_rest_timer_done.mp3'
     }
   },
   {
@@ -73,6 +83,10 @@ const OH_PROTOCOL_STEPS = [
     taiwaneseAudio: {
       patient: 'audio/taiwanese/supine_measure_patient.mp3',
       staff: 'audio/taiwanese/supine_measure_staff.mp3'
+    },
+    mandarinAudio: {
+      patient: 'audio/mandarin/supine_measure_patient.mp3',
+      staff: 'audio/mandarin/supine_measure_staff.mp3'
     }
   },
   {
@@ -101,6 +115,12 @@ const OH_PROTOCOL_STEPS = [
       staff: 'audio/taiwanese/sitting_transition_staff.mp3',
       preAlert: 'audio/taiwanese/pre_alert.mp3',
       timerDone: 'audio/taiwanese/timer_done.mp3'
+    },
+    mandarinAudio: {
+      patient: 'audio/mandarin/sitting_transition_patient.mp3',
+      staff: 'audio/mandarin/sitting_transition_staff.mp3',
+      preAlert: 'audio/mandarin/sitting_transition_pre_alert.mp3',
+      timerDone: 'audio/mandarin/sitting_transition_timer_done.mp3'
     }
   },
   {
@@ -128,6 +148,12 @@ const OH_PROTOCOL_STEPS = [
       staff: 'audio/taiwanese/stand_1min_staff.mp3',
       preAlert: 'audio/taiwanese/pre_alert.mp3',
       timerDone: 'audio/taiwanese/timer_done.mp3'
+    },
+    mandarinAudio: {
+      patient: 'audio/mandarin/stand_1min_patient.mp3',
+      staff: 'audio/mandarin/stand_1min_staff.mp3',
+      preAlert: 'audio/mandarin/stand_1min_pre_alert.mp3',
+      timerDone: 'audio/mandarin/stand_1min_timer_done.mp3'
     }
   },
   {
@@ -155,6 +181,12 @@ const OH_PROTOCOL_STEPS = [
       staff: 'audio/taiwanese/stand_3min_staff.mp3',
       preAlert: 'audio/taiwanese/pre_alert.mp3',
       timerDone: 'audio/taiwanese/timer_done.mp3'
+    },
+    mandarinAudio: {
+      patient: 'audio/mandarin/stand_3min_patient.mp3',
+      staff: 'audio/mandarin/stand_3min_staff.mp3',
+      preAlert: 'audio/mandarin/stand_3min_pre_alert.mp3',
+      timerDone: 'audio/mandarin/stand_3min_timer_done.mp3'
     }
   },
   {
@@ -177,6 +209,10 @@ const OH_PROTOCOL_STEPS = [
     taiwaneseAudio: {
       patient: 'audio/taiwanese/complete_patient.mp3',
       staff: 'audio/taiwanese/complete_staff.mp3'
+    },
+    mandarinAudio: {
+      patient: 'audio/mandarin/complete_patient.mp3',
+      staff: 'audio/mandarin/complete_staff.mp3'
     }
   }
 ];

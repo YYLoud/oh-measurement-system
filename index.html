@@ -72,25 +72,12 @@
           </div>
 
           <div class="panel-body">
-            <!-- 流程選項列 -->
-            <div class="protocol-toolbar">
-              <label class="toggle-label" title="勾選後將在平躺與站立之間增加「坐姿過渡與測量」階段">
-                <input type="checkbox" id="includeSittingToggle" />
-                <span>包含「坐姿過渡測量」階段</span>
-              </label>
-
-              <label class="toggle-label" title="開啟後將等待計時縮短為 15 秒，方便快速展示、教學或測試語音流程">
-                <input type="checkbox" id="quickDemoToggle" />
-                <span>⚡ 15秒快速測試模式 (教學/預覽用)</span>
-              </label>
-            </div>
-
-            <!-- 階段進度條 (可點擊切換任意階段) -->
+            <!-- 階段進度條 (可點擊切換任意階段，再次點擊當前階段可直接播放) -->
             <div class="stepper-track" id="stepperTrack" aria-label="測量階段進度"></div>
 
             <!-- ============================================================
                  一體化「當前階段顯示 ＋ 語音/輕音樂播放與計時主控台」
-                 所有階段控制與播放按鈕直接結合在同一視覺區域，免上下滑動尋找
+                 核心按鈕一目了然，次要設定收合於摺疊抽屜內
                  ============================================================ -->
             <div class="current-stage-banner">
               <div class="stage-header-row">
@@ -104,7 +91,7 @@
                 </div>
               </div>
 
-              <!-- 中央整合區：左側圓形計時器 ＋ 右側(手機為緊鄰下方)主播放與階段控制面板 -->
+              <!-- 中央整合區：左側圓形計時器 ＋ 右側主播放與階段控制面板 -->
               <div class="stage-console-body">
                 <div class="timer-centerpiece">
                   <div class="timer-ring-container" id="timerRingContainer">
@@ -123,7 +110,7 @@
                   </div>
                 </div>
 
-                <!-- 緊貼階段與計時器的播放控制面板 -->
+                <!-- 緊貼階段與計時器的核心播放控制面板 -->
                 <div class="stage-playback-controls">
                   <button type="button" class="btn btn-primary-large" id="primaryStepActionBtn">
                     🔊 播報「測量前準備」雙角色語音提示
@@ -141,43 +128,56 @@
                     </button>
                   </div>
 
-                  <!-- 語音模式切換與輕音樂控制列 (直接整合於階段面板內) -->
-                  <div class="stage-audio-toolbar">
-                    <select id="headerLangModeSelect" class="stage-lang-select" title="快速切換國語／台語播報搭配模式">
-                      <option value="patient_tw_staff_zh" selected>🗣️ 病患：台語 ／ 醫護：國語 (推薦)</option>
-                      <option value="all_tw">🗣️ 全台語模式 (病患＋醫護皆台語)</option>
-                      <option value="patient_both_staff_zh">🗣️ 病患：國語＋台語 ／ 醫護：國語</option>
-                      <option value="all_zh">🗣️ 全國語模式 (台灣國語 zh-TW)</option>
-                    </select>
-
-                    <div class="stage-audio-btns-row">
-                      <button type="button" class="stage-audio-btn" id="headerMusicToggleBtn" title="隨時開啟或暫停等待期間的舒緩輕音樂">
-                        🎵 播放舒緩輕音樂
-                      </button>
-                      <button type="button" class="stage-audio-btn" id="headerTestVoiceBtn" title="測試台語與台灣國語語音">
-                        🔊 測試國台語音
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- 台語與國語獨立快速音量調節列 -->
-                  <div class="quick-volume-sliders">
-                    <div class="vol-slider-item">
-                      <span style="font-weight: 700; color: #047857; white-space: nowrap;">🔊 台語音量：</span>
-                      <input type="range" id="quickTwVolInput" min="0.2" max="4.0" step="0.1" value="2.2" style="accent-color: #0d8a72;" title="獨立調整台語語音音量（最高支援 400% 增幅放大）" />
-                      <strong id="quickTwVolVal" style="min-width: 42px; text-align: right; color: #047857;">220%</strong>
-                    </div>
-                    <div class="vol-slider-item">
-                      <span style="font-weight: 700; color: #1d4ed8; white-space: nowrap;">🔉 國語音量：</span>
-                      <input type="range" id="quickZhVolInput" min="0.1" max="1.0" step="0.05" value="0.65" style="accent-color: #0f6cbd;" title="獨立調整國語語音音量" />
-                      <strong id="quickZhVolVal" style="min-width: 42px; text-align: right; color: #1d4ed8;">65%</strong>
-                    </div>
-                  </div>
-
-                  <!-- 手機／平板專用快捷鍵：一鍵跳轉至第二部分輸入當前階段血壓 -->
-                  <button type="button" class="btn btn-jump-record" id="jumpToRecordBtn">
-                    📝 前往輸入本階段血壓與心跳數值 ➔
+                  <button type="button" class="stage-audio-btn" id="headerMusicToggleBtn" title="隨時開啟或暫停等待期間的舒緩輕音樂" style="width: 100%;">
+                    🎵 播放舒緩輕音樂
                   </button>
+
+                  <!-- 快捷鍵：一鍵跳轉/聚焦至第二部分輸入當前階段血壓（步驟一準備階段預設為不可啟動 disabled） -->
+                  <button type="button" class="btn btn-jump-record" id="jumpToRecordBtn" disabled>
+                    📝 本階段（測量前準備）無需記錄血壓與心跳
+                  </button>
+
+                  <!-- 摺疊收納：平時不需頻繁變動的語音模式、獨立音量與流程選項 -->
+                  <details class="collapsible-drawer">
+                    <summary>🎛️ 語音語言、音量微調與流程選項</summary>
+                    <div class="collapsible-drawer-body">
+                      <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;">
+                        <select id="headerLangModeSelect" class="stage-lang-select" style="flex: 1;" title="快速切換國語／台語播報搭配模式">
+                          <option value="patient_tw_staff_zh" selected>🗣️ 病患：台語 ／ 醫護：國語 (推薦)</option>
+                          <option value="all_tw">🗣️ 全台語模式 (病患＋醫護皆台語)</option>
+                          <option value="patient_both_staff_zh">🗣️ 病患：國語＋台語 ／ 醫護：國語</option>
+                          <option value="all_zh">🗣️ 全國語模式 (台灣國語 zh-TW)</option>
+                        </select>
+                        <button type="button" class="stage-audio-btn" id="headerTestVoiceBtn" title="測試台語與台灣國語語音">
+                          🔊 測試語音
+                        </button>
+                      </div>
+
+                      <div class="quick-volume-sliders">
+                        <div class="vol-slider-item">
+                          <span style="font-weight: 700; color: #047857; white-space: nowrap;">🔊 台語音量：</span>
+                          <input type="range" id="quickTwVolInput" min="0.0" max="4.0" step="0.1" value="2.2" style="accent-color: #0d8a72;" title="獨立調整台語語音音量（支援 0% 靜音至 400% 增幅放大）" />
+                          <strong id="quickTwVolVal" style="min-width: 42px; text-align: right; color: #047857;">220%</strong>
+                        </div>
+                        <div class="vol-slider-item">
+                          <span style="font-weight: 700; color: #1d4ed8; white-space: nowrap;">🔉 國語音量：</span>
+                          <input type="range" id="quickZhVolInput" min="0.0" max="2.0" step="0.05" value="0.65" style="accent-color: #0f6cbd;" title="獨立調整國語語音音量（透過 Web Audio GainNode 即時控音，支援 0% 靜音至 200% 增幅）" />
+                          <strong id="quickZhVolVal" style="min-width: 42px; text-align: right; color: #1d4ed8;">65%</strong>
+                        </div>
+                      </div>
+
+                      <div class="protocol-toolbar" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
+                        <label class="toggle-label" title="勾選後將在平躺與站立之間增加「坐姿過渡與測量」階段">
+                          <input type="checkbox" id="includeSittingToggle" />
+                          <span>包含「坐姿過渡測量」階段</span>
+                        </label>
+                        <label class="toggle-label" title="開啟後將等待計時縮短為 15 秒，方便快速展示、教學或測試語音流程">
+                          <input type="checkbox" id="quickDemoToggle" />
+                          <span>⚡ 15秒快速測試模式</span>
+                        </label>
+                      </div>
+                    </div>
+                  </details>
                 </div>
               </div>
             </div>
@@ -187,34 +187,37 @@
               <!-- 對病患的指導 -->
               <div class="role-card patient-card">
                 <div class="role-card-header">
-                  <span class="role-badge">🛌 病患動作指引 (Patient Guidance)</span>
+                  <span class="role-badge">🛌 病患動作指引</span>
                   <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
                     <button type="button" class="speak-single-btn" id="speakPatientTwBtn" style="background:#ecfdf5; border-color:#10b981; color:#047857;">
-                      🔊 播報台語
+                      🔊 台語
                     </button>
                     <button type="button" class="speak-single-btn" id="speakPatientOnlyBtn">
-                      🔊 播報國語
+                      🔊 國語
                     </button>
                   </div>
                 </div>
                 <p class="role-card-content" id="patientInstructionText">
                   請配合醫護人員躺平在檢查床上，雙腿自然伸直、不要交叉，全身放鬆即可。
                 </p>
-                <p id="patientTaiwaneseSubText" style="font-size: 0.86rem; color: #15803d; margin-top: 0.35rem; font-weight: 600;">
-                  （台語：你好，這馬欲來量血壓。請配合護理師，躺平佇床仔頂，雙跤伸直莫交挐，身軀放輕鬆。）
-                </p>
+                <details style="margin-top: 0.35rem; font-size: 0.82rem; color: #15803d;">
+                  <summary style="cursor: pointer; font-weight: 600; user-select: none;">💬 檢視台語台詞字幕</summary>
+                  <p id="patientTaiwaneseSubText" style="margin-top: 0.25rem; font-weight: 600;">
+                    （台語：你好，這馬欲來量血壓。請配合護理師，躺平佇床仔頂，雙跤伸直莫交挐，身軀放輕鬆。）
+                  </p>
+                </details>
               </div>
 
               <!-- 對醫護人員的指導 -->
               <div class="role-card staff-card">
                 <div class="role-card-header">
-                  <span class="role-badge">🧑‍⚕️ 醫護人員執行動作 (Clinical Staff Action)</span>
+                  <span class="role-badge">🧑‍⚕️ 醫護人員動作</span>
                   <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
                     <button type="button" class="speak-single-btn" id="speakStaffOnlyBtn">
-                      🔊 單獨播報國語
+                      🔊 國語
                     </button>
                     <button type="button" class="speak-single-btn" id="speakStaffTwBtn">
-                      🔊 單獨播報台語
+                      🔊 台語
                     </button>
                   </div>
                 </div>
@@ -227,7 +230,7 @@
             <!-- 緊急安全中止按鈕 -->
             <div class="action-buttons-grid">
               <button type="button" class="btn btn-warning-abort" id="emergencyAbortBtn">
-                ⚠️ 病患頭暈不適／緊急中止站立（立即播報安全保護語音並標記紀錄）
+                ⚠️ 病患頭暈不適／緊急中止站立
               </button>
             </div>
           </div>
@@ -259,8 +262,8 @@
           </div>
 
           <div class="panel-body">
-            <!-- 病患基本資料區 -->
-            <div class="patient-info-grid">
+            <!-- 病患核心基本資料（僅保留最常填的病歷號與姓名，其餘收納至下方摺疊抽屜） -->
+            <div class="patient-info-grid" style="margin-bottom: 0.65rem;">
               <div class="form-field">
                 <label for="patientChartId">病歷號 (Chart ID)</label>
                 <input type="text" id="patientChartId" placeholder="例如：A1234567" />
@@ -269,39 +272,53 @@
                 <label for="patientName">病患姓名</label>
                 <input type="text" id="patientName" placeholder="請輸入姓名" />
               </div>
-              <div class="form-field">
-                <label for="patientAge">年齡 (歲)</label>
-                <input type="number" id="patientAge" min="1" max="120" placeholder="例如：72" />
-              </div>
-              <div class="form-field">
-                <label for="patientGender">性別</label>
-                <select id="patientGender">
-                  <option value="">未選擇</option>
-                  <option value="男">男 (Male)</option>
-                  <option value="女">女 (Female)</option>
-                  <option value="其他">其他</option>
-                </select>
-              </div>
-              <div class="form-field">
-                <label for="patientArm">測量部位</label>
-                <select id="patientArm">
-                  <option value="左手 (Left Arm)">左手 (Left Arm)</option>
-                  <option value="右手 (Right Arm)">右手 (Right Arm)</option>
-                </select>
-              </div>
-              <div class="form-field">
-                <label for="patientCuffSize">壓脈帶尺寸</label>
-                <select id="patientCuffSize">
-                  <option value="標準成人壓脈帶 (Standard)">標準成人壓脈帶 (Standard)</option>
-                  <option value="大號成人壓脈帶 (Large)">大號成人壓脈帶 (Large)</option>
-                  <option value="小號成人壓脈帶 (Small)">小號成人壓脈帶 (Small)</option>
-                </select>
-              </div>
-              <div class="form-field field-full-width">
-                <label for="patientMeasuredAt">測量日期與時間</label>
-                <input type="datetime-local" id="patientMeasuredAt" />
-              </div>
             </div>
+
+            <!-- 摺疊收納：次要病患資料與臨床備註 -->
+            <details class="collapsible-drawer" style="margin-bottom: 1rem;">
+              <summary>👤 更多病患資料與臨床備註 (年齡 / 性別 / 部位 / 時間 / 備註)</summary>
+              <div class="collapsible-drawer-body">
+                <div class="patient-info-grid" style="margin-bottom: 0; background: transparent; border: none; padding: 0;">
+                  <div class="form-field">
+                    <label for="patientAge">年齡 (歲)</label>
+                    <input type="number" id="patientAge" min="1" max="120" placeholder="例如：72" />
+                  </div>
+                  <div class="form-field">
+                    <label for="patientGender">性別</label>
+                    <select id="patientGender">
+                      <option value="">未選擇</option>
+                      <option value="男">男 (Male)</option>
+                      <option value="女">女 (Female)</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="patientArm">測量部位</label>
+                    <select id="patientArm">
+                      <option value="左手 (Left Arm)">左手 (Left Arm)</option>
+                      <option value="右手 (Right Arm)">右手 (Right Arm)</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="patientCuffSize">壓脈帶尺寸</label>
+                    <select id="patientCuffSize">
+                      <option value="標準成人壓脈帶 (Standard)">標準成人壓脈帶 (Standard)</option>
+                      <option value="大號成人壓脈帶 (Large)">大號成人壓脈帶 (Large)</option>
+                      <option value="小號成人壓脈帶 (Small)">小號成人壓脈帶 (Small)</option>
+                    </select>
+                  </div>
+                  <div class="form-field field-full-width">
+                    <label for="patientMeasuredAt">測量日期與時間</label>
+                    <input type="datetime-local" id="patientMeasuredAt" />
+                  </div>
+                </div>
+
+                <div class="form-field">
+                  <label for="patientNotes">醫護臨床備註（如：目前服用之降血壓藥物、昨日飲水量、下床步態觀察等）</label>
+                  <textarea id="patientNotes" rows="2" placeholder="可輸入相關病史、用藥或臨床觀察備註..."></textarea>
+                </div>
+              </div>
+            </details>
 
             <!-- 各階段血壓、心跳與症狀動態輸入區 -->
             <div class="measurement-stages-list" id="measurementStagesContainer"></div>
@@ -311,12 +328,6 @@
               <button type="button" class="btn btn-jump-record" id="jumpBackToGuidanceBtn" style="width: 100%; background: #e6f2ff; color: #0b4f8c; border-color: #93c5fd;">
                 ⬅️ 返回「第一部分：語音指導與計時」繼續下一階段
               </button>
-            </div>
-
-            <!-- 醫護臨床備註欄 -->
-            <div class="form-field" style="margin-bottom: 1.15rem;">
-              <label for="patientNotes">醫護臨床備註（如：目前服用之降血壓藥物、昨日飲水量、下床步態觀察等）</label>
-              <textarea id="patientNotes" rows="2" placeholder="可輸入相關病史、用藥或臨床觀察備註..."></textarea>
             </div>
 
             <!-- 即時臨床自動判讀橫幅 -->
@@ -475,18 +486,18 @@
               <div class="form-field">
                 <label>🔊 台語語音獨立音量（含強效增幅放大器，最高 400%）：<strong id="taiwaneseVolVal">220%</strong></label>
                 <div class="range-row">
-                  <span>小</span>
-                  <input type="range" id="taiwaneseVolInput" min="0.2" max="4.0" step="0.1" value="2.2" />
+                  <span>靜音</span>
+                  <input type="range" id="taiwaneseVolInput" min="0.0" max="4.0" step="0.1" value="2.2" />
                   <span>400% (超大聲)</span>
                 </div>
               </div>
 
               <div class="form-field">
-                <label>🔉 國語語音獨立音量：<strong id="speechVolVal">65%</strong></label>
+                <label>🔉 國語語音獨立音量（透過 Web Audio GainNode 即時控音，最高 200%）：<strong id="speechVolVal">65%</strong></label>
                 <div class="range-row">
-                  <span>小</span>
-                  <input type="range" id="speechVolInput" min="0.1" max="1.0" step="0.05" value="0.65" />
-                  <span>100%</span>
+                  <span>靜音</span>
+                  <input type="range" id="speechVolInput" min="0.0" max="2.0" step="0.05" value="0.65" />
+                  <span>200% (增幅)</span>
                 </div>
               </div>
             </div>
@@ -550,6 +561,7 @@
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
   <!-- 載入系統 JavaScript 模組 -->
+  <script src="js/mandarin-audio-data.js"></script>
   <script src="js/taiwanese-audio-data.js"></script>
   <script src="js/protocol-steps.js"></script>
   <script src="js/audio-engine.js"></script>
