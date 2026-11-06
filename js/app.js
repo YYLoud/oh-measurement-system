@@ -101,6 +101,12 @@ class OHAppController {
     this._renderMeasurementStages();
     this._updateClinicalAssessment();
     this._refreshHistoryTable();
+
+    // 在手機/窄螢幕上預設收合雙角色動作指引卡，釋放垂直視野；桌面寬螢幕保持展開
+    const dualRoleDrawer = document.getElementById('dualRoleDrawer');
+    if (dualRoleDrawer) {
+      dualRoleDrawer.open = window.innerWidth > 1120;
+    }
   }
 
   /**
@@ -370,9 +376,13 @@ class OHAppController {
     const mobileShowBothBtn = document.getElementById('mobileShowBothBtn');
     const jumpToRecordBtn = document.getElementById('jumpToRecordBtn');
     const jumpBackToGuidanceBtn = document.getElementById('jumpBackToGuidanceBtn');
+    const topJumpBackToGuidanceBtn = document.getElementById('topJumpBackToGuidanceBtn');
 
     if (mobileShowPart1Btn) {
-      mobileShowPart1Btn.addEventListener('click', () => this.switchMobilePartView('part1'));
+      mobileShowPart1Btn.addEventListener('click', () => {
+        this.switchMobilePartView('part1');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
     }
     if (mobileShowPart2Btn) {
       mobileShowPart2Btn.addEventListener('click', () => this.switchMobilePartView('part2'));
@@ -388,11 +398,25 @@ class OHAppController {
         this.switchMobilePartView('part2');
         if (targetStageKey) {
           this._highlightActiveRecordBox(targetStageKey, true);
+          const targetBox = document.getElementById(`record-box-${targetStageKey}`);
+          if (targetBox && typeof targetBox.scrollIntoView === 'function') {
+            setTimeout(() => {
+              targetBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 80);
+          }
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
         }
       });
     }
     if (jumpBackToGuidanceBtn) {
       jumpBackToGuidanceBtn.addEventListener('click', () => {
+        this.switchMobilePartView('part1');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    }
+    if (topJumpBackToGuidanceBtn) {
+      topJumpBackToGuidanceBtn.addEventListener('click', () => {
         this.switchMobilePartView('part1');
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
@@ -407,6 +431,7 @@ class OHAppController {
     const btn1 = document.getElementById('mobileShowPart1Btn');
     const btn2 = document.getElementById('mobileShowPart2Btn');
     const btnBoth = document.getElementById('mobileShowBothBtn');
+    const btn1Text = document.getElementById('mobilePart1BtnText');
     if (!grid) return;
 
     grid.classList.remove('mobile-view-part1', 'mobile-view-part2');
@@ -417,11 +442,14 @@ class OHAppController {
     if (mode === 'part1') {
       grid.classList.add('mobile-view-part1');
       if (btn1) btn1.classList.add('active');
+      if (btn1Text) btn1Text.textContent = '⏱️ 語音指導';
     } else if (mode === 'part2') {
       grid.classList.add('mobile-view-part2');
       if (btn2) btn2.classList.add('active');
+      if (btn1Text) btn1Text.textContent = '⬅️ 語音指導';
     } else {
       if (btnBoth) btnBoth.classList.add('active');
+      if (btn1Text) btn1Text.textContent = '⏱️ 語音指導';
     }
   }
 
@@ -683,7 +711,14 @@ class OHAppController {
     if (!step.hasTimer) {
       if (digitsEl) digitsEl.textContent = '手動確認';
       if (subtextEl) subtextEl.textContent = '完成動作後請點選下一階段';
-      if (mobileMiniBadge) mobileMiniBadge.textContent = step.shortTitle;
+      if (mobileMiniBadge) {
+        const miniBadgeMap = {
+          prep: '準備',
+          supine_measure: '量平躺',
+          complete: '完成'
+        };
+        mobileMiniBadge.textContent = miniBadgeMap[step.id] || '手動';
+      }
       if (progressCircle) {
         progressCircle.style.strokeDashoffset = '0';
         progressCircle.classList.remove('pre-alert', 'done');
@@ -697,7 +732,7 @@ class OHAppController {
 
     if (digitsEl) digitsEl.textContent = formatted;
     if (mobileMiniBadge) {
-      mobileMiniBadge.textContent = this.timerRemainingSec === 0 ? '✅量血壓' : formatted;
+      mobileMiniBadge.textContent = this.timerRemainingSec === 0 ? '量血壓' : formatted;
     }
 
     if (subtextEl) {
@@ -848,6 +883,12 @@ class OHAppController {
           </summary>
           <div class="symptoms-row" id="symptoms-row-${cfg.key}"></div>
         </details>
+
+        <div class="stage-return-action no-print">
+          <button type="button" class="btn-stage-return" data-return-stage="${cfg.key}">
+            ⬅️ 本階段數值已填寫完畢，返回「語音指導」下一階段 ➔
+          </button>
+        </div>
       `;
 
       const symptomsRow = box.querySelector(`#symptoms-row-${cfg.key}`);
@@ -867,6 +908,16 @@ class OHAppController {
 
         symptomsRow.appendChild(chip);
       });
+
+      const stageReturnBtn = box.querySelector('.btn-stage-return');
+      if (stageReturnBtn) {
+        stageReturnBtn.addEventListener('click', () => {
+          this.switchMobilePartView('part1');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          const stageName = cfg.title.split('.')[1]?.trim() || cfg.title;
+          this.showToast(`✅ 已記錄「${stageName}」數值，為您返回語音指導繼續流程！`);
+        });
+      }
 
       container.appendChild(box);
     });

@@ -42,17 +42,17 @@
     <!-- 頁籤 1：雙欄聯動工作區 (第一部分：語音指導 + 第二部分：臨床記錄) -->
     <section id="tab-workspace" class="tab-panel active">
 
-      <!-- 手機／平板專用：第一部分與第二部分快速切換列 (避免長距離上下滑動，且絕不遮擋主畫面) -->
+      <!-- 手機／平板專用：第一部分與第二部分快速切換列 (高度鎖定，切換步驟絕不上下跳動) -->
       <div class="mobile-part-switcher no-print" id="mobilePartSwitcher">
-        <div class="mobile-part-switcher-inner" style="grid-template-columns: 1fr 1fr auto;">
+        <div class="mobile-part-switcher-inner">
           <button type="button" class="mobile-part-btn active" id="mobileShowPart1Btn">
-            <span>⏱️ 語音指導</span>
+            <span id="mobilePart1BtnText">⏱️ 語音指導</span>
             <span class="mobile-mini-timer-badge" id="mobileMiniTimerBadge">準備</span>
           </button>
           <button type="button" class="mobile-part-btn part2-btn" id="mobileShowPart2Btn">
             <span>📝 記錄血壓與判讀</span>
           </button>
-          <button type="button" class="mobile-part-btn" id="mobileShowBothBtn" title="上下同時顯示兩部分" style="padding: 0.6rem 0.65rem; font-size: 0.8rem;">
+          <button type="button" class="mobile-part-btn" id="mobileShowBothBtn" title="上下同時顯示兩部分" style="padding: 0 0.55rem; font-size: 0.8rem;">
             <span>↕️ 全部展開</span>
           </button>
         </div>
@@ -182,50 +182,57 @@
               </div>
             </div>
 
-            <!-- 雙角色語音與動作提示卡 (分別指導病患與醫護人員) -->
-            <div class="dual-role-cards">
-              <!-- 對病患的指導 -->
-              <div class="role-card patient-card">
-                <div class="role-card-header">
-                  <span class="role-badge">🛌 病患動作指引</span>
-                  <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
-                    <button type="button" class="speak-single-btn" id="speakPatientTwBtn" style="background:#ecfdf5; border-color:#10b981; color:#047857;">
-                      🔊 台語
-                    </button>
-                    <button type="button" class="speak-single-btn" id="speakPatientOnlyBtn">
-                      🔊 國語
-                    </button>
+            <!-- 雙角色語音與動作提示卡 (可摺疊收合抽屜，釋放畫面垂直空間，點擊隨時展開查閱) -->
+            <details class="collapsible-drawer dual-role-drawer" id="dualRoleDrawer">
+              <summary>
+                <span>💬 病患動作指引與醫護台詞對話卡</span>
+              </summary>
+              <div class="collapsible-drawer-body">
+                <div class="dual-role-cards">
+                  <!-- 對病患的指導 -->
+                  <div class="role-card patient-card">
+                    <div class="role-card-header">
+                      <span class="role-badge">🛌 病患動作指引</span>
+                      <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                        <button type="button" class="speak-single-btn" id="speakPatientTwBtn" style="background:#ecfdf5; border-color:#10b981; color:#047857;">
+                          🔊 台語
+                        </button>
+                        <button type="button" class="speak-single-btn" id="speakPatientOnlyBtn">
+                          🔊 國語
+                        </button>
+                      </div>
+                    </div>
+                    <p class="role-card-content" id="patientInstructionText">
+                      請配合醫護人員躺平在檢查床上，雙腿自然伸直、不要交叉，全身放鬆即可。
+                    </p>
+                    <details style="margin-top: 0.35rem; font-size: 0.82rem; color: #15803d;">
+                      <summary style="cursor: pointer; font-weight: 600; user-select: none;">💬 檢視台語台詞字幕</summary>
+                      <p id="patientTaiwaneseSubText" style="margin-top: 0.25rem; font-weight: 600;">
+                        （台語：你好，這馬欲來量血壓。請配合護理師，躺平佇床仔頂，雙跤伸直莫交挐，身軀放輕鬆。）
+                      </p>
+                    </details>
                   </div>
-                </div>
-                <p class="role-card-content" id="patientInstructionText">
-                  請配合醫護人員躺平在檢查床上，雙腿自然伸直、不要交叉，全身放鬆即可。
-                </p>
-                <details style="margin-top: 0.35rem; font-size: 0.82rem; color: #15803d;">
-                  <summary style="cursor: pointer; font-weight: 600; user-select: none;">💬 檢視台語台詞字幕</summary>
-                  <p id="patientTaiwaneseSubText" style="margin-top: 0.25rem; font-weight: 600;">
-                    （台語：你好，這馬欲來量血壓。請配合護理師，躺平佇床仔頂，雙跤伸直莫交挐，身軀放輕鬆。）
-                  </p>
-                </details>
-              </div>
 
-              <!-- 對醫護人員的指導 -->
-              <div class="role-card staff-card">
-                <div class="role-card-header">
-                  <span class="role-badge">🧑‍⚕️ 醫護人員動作</span>
-                  <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
-                    <button type="button" class="speak-single-btn" id="speakStaffOnlyBtn">
-                      🔊 國語
-                    </button>
-                    <button type="button" class="speak-single-btn" id="speakStaffTwBtn">
-                      🔊 台語
-                    </button>
+                  <!-- 對醫護人員的指導 -->
+                  <div class="role-card staff-card">
+                    <div class="role-card-header">
+                      <span class="role-badge">🧑‍⚕️ 醫護人員動作</span>
+                      <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                        <button type="button" class="speak-single-btn" id="speakStaffOnlyBtn">
+                          🔊 國語
+                        </button>
+                        <button type="button" class="speak-single-btn" id="speakStaffTwBtn">
+                          🔊 台語
+                        </button>
+                      </div>
+                    </div>
+                    <p class="role-card-content" id="staffInstructionText">
+                      請確認病患基本資料，選擇合適尺寸的血壓壓脈帶綁於上臂（與心臟同高），並引導病患平躺於檢查床上。
+                    </p>
                   </div>
                 </div>
-                <p class="role-card-content" id="staffInstructionText">
-                  請確認病患基本資料，選擇合適尺寸的血壓壓脈帶綁於上臂（與心臟同高），並引導病患平躺於檢查床上。
-                </p>
               </div>
-            </div>
+            </details>
 
             <!-- 緊急安全中止按鈕 -->
             <div class="action-buttons-grid">
@@ -262,6 +269,14 @@
           </div>
 
           <div class="panel-body">
+            <!-- 手機／平板專用：頂部快速返回「第一部分語音指導」按鈕（一跳過來就能看到，無須往下滑動） -->
+            <div class="part2-top-return-bar no-print" id="part2TopReturnBar">
+              <button type="button" class="btn btn-return-to-guidance" id="topJumpBackToGuidanceBtn">
+                <span class="return-icon">⬅️</span>
+                <span class="return-label">返回「第一部分：語音指導與計時」繼續下一階段</span>
+              </button>
+            </div>
+
             <!-- 病患核心基本資料（僅保留最常填的病歷號與姓名，其餘收納至下方摺疊抽屜） -->
             <div class="patient-info-grid" style="margin-bottom: 0.65rem;">
               <div class="form-field">
