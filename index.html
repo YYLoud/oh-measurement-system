@@ -42,7 +42,7 @@
     <!-- 頁籤 1：雙欄聯動工作區 (第一部分：語音指導 + 第二部分：臨床記錄) -->
     <section id="tab-workspace" class="tab-panel active">
 
-      <!-- 手機／平板專用：第一部分與第二部分快速切換列 (高度鎖定，切換步驟絕不上下跳動) -->
+      <!-- 手機／平板專用：第一部分與第二部分快速切換列 (保留語音指導與記錄血壓雙頁箋，高度鎖定不跳動) -->
       <div class="mobile-part-switcher no-print" id="mobilePartSwitcher">
         <div class="mobile-part-switcher-inner">
           <button type="button" class="mobile-part-btn active" id="mobileShowPart1Btn">
@@ -51,9 +51,6 @@
           </button>
           <button type="button" class="mobile-part-btn part2-btn" id="mobileShowPart2Btn">
             <span>📝 記錄血壓與判讀</span>
-          </button>
-          <button type="button" class="mobile-part-btn" id="mobileShowBothBtn" title="上下同時顯示兩部分" style="padding: 0 0.55rem; font-size: 0.8rem;">
-            <span>↕️ 全部展開</span>
           </button>
         </div>
       </div>
@@ -81,14 +78,14 @@
                  ============================================================ -->
             <div class="current-stage-banner">
               <div class="stage-header-row">
-                <div class="stage-title-wrap">
+                <div class="stage-meta-row">
                   <span class="stage-badge" id="currentStageBadge">準備階段</span>
-                  <h3 id="currentStageTitle">階段一：測量前準備與壓脈帶確認</h3>
+                  <div class="stage-voice-status">
+                    <span class="pulse-dot" id="voicePulseDot"></span>
+                    <span id="voiceStatusText">國台語待命</span>
+                  </div>
                 </div>
-                <div class="stage-voice-status">
-                  <span class="pulse-dot" id="voicePulseDot"></span>
-                  <span id="voiceStatusText">國台語待命</span>
-                </div>
+                <h3 class="stage-title-text" id="currentStageTitle">階段一：測量前準備與壓脈帶確認</h3>
               </div>
 
               <!-- 中央整合區：左側圓形計時器 ＋ 右側主播放與階段控制面板 -->

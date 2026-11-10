@@ -370,10 +370,9 @@ class OHAppController {
       });
     }
 
-    // 手機／平板專用：第一部分與第二部分快速切換控制
+    // 手機／平板專用：第一部分與第二部分快速雙頁箋切換控制
     const mobileShowPart1Btn = document.getElementById('mobileShowPart1Btn');
     const mobileShowPart2Btn = document.getElementById('mobileShowPart2Btn');
-    const mobileShowBothBtn = document.getElementById('mobileShowBothBtn');
     const jumpToRecordBtn = document.getElementById('jumpToRecordBtn');
     const jumpBackToGuidanceBtn = document.getElementById('jumpBackToGuidanceBtn');
     const topJumpBackToGuidanceBtn = document.getElementById('topJumpBackToGuidanceBtn');
@@ -386,9 +385,6 @@ class OHAppController {
     }
     if (mobileShowPart2Btn) {
       mobileShowPart2Btn.addEventListener('click', () => this.switchMobilePartView('part2'));
-    }
-    if (mobileShowBothBtn) {
-      mobileShowBothBtn.addEventListener('click', () => this.switchMobilePartView('both'));
     }
     if (jumpToRecordBtn) {
       jumpToRecordBtn.addEventListener('click', () => {
@@ -424,32 +420,27 @@ class OHAppController {
   }
 
   /**
-   * 切換手機／平板視圖模式 ('part1' | 'part2' | 'both')
+   * 切換手機／平板視圖模式 ('part1' | 'part2')
    */
   switchMobilePartView(mode) {
     const grid = document.getElementById('workspaceGrid');
     const btn1 = document.getElementById('mobileShowPart1Btn');
     const btn2 = document.getElementById('mobileShowPart2Btn');
-    const btnBoth = document.getElementById('mobileShowBothBtn');
     const btn1Text = document.getElementById('mobilePart1BtnText');
     if (!grid) return;
 
     grid.classList.remove('mobile-view-part1', 'mobile-view-part2');
     if (btn1) btn1.classList.remove('active');
     if (btn2) btn2.classList.remove('active');
-    if (btnBoth) btnBoth.classList.remove('active');
 
     if (mode === 'part1') {
       grid.classList.add('mobile-view-part1');
       if (btn1) btn1.classList.add('active');
       if (btn1Text) btn1Text.textContent = '⏱️ 語音指導';
-    } else if (mode === 'part2') {
+    } else {
       grid.classList.add('mobile-view-part2');
       if (btn2) btn2.classList.add('active');
       if (btn1Text) btn1Text.textContent = '⬅️ 語音指導';
-    } else {
-      if (btnBoth) btnBoth.classList.add('active');
-      if (btn1Text) btn1Text.textContent = '⏱️ 語音指導';
     }
   }
 
