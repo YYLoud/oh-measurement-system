@@ -179,7 +179,7 @@
 
                   <!-- 摺疊收納：平時不需頻繁變動的語音模式、獨立音量與流程選項 -->
                   <details class="collapsible-drawer">
-                    <summary>🎛️ 語音語言、音量微調與流程選項</summary>
+                    <summary><span>🎛️ 語音語言、音量微調與流程選項</span></summary>
                     <div class="collapsible-drawer-body">
                       <div class="drawer-lang-row">
                         <select id="headerLangModeSelect" class="stage-lang-select" title="快速切換國語／台語播報搭配模式">
@@ -245,11 +245,15 @@
                     <p class="role-card-content" id="patientInstructionText">
                       請配合醫護人員躺平在檢查床上，雙腿自然伸直、不要交叉，全身放鬆即可。
                     </p>
-                    <details style="margin-top: 0.35rem; font-size: 0.82rem; color: #15803d;">
-                      <summary style="cursor: pointer; font-weight: 600; user-select: none;">💬 檢視台語台詞字幕</summary>
-                      <p id="patientTaiwaneseSubText" style="margin-top: 0.25rem; font-weight: 600;">
-                        （台語：你好，這馬欲來量血壓。請配合護理師，躺平佇床仔頂，雙跤伸直莫交挐，身軀放輕鬆。）
-                      </p>
+                    <details class="collapsible-drawer" style="margin-top: 0.45rem; border-color: rgba(16, 185, 129, 0.25);">
+                      <summary style="padding: 0.45rem 0.75rem; font-size: 0.8rem; background: rgba(16, 185, 129, 0.08); color: #047857;">
+                        <span>💬 檢視台語台詞字幕</span>
+                      </summary>
+                      <div class="collapsible-drawer-body" style="padding: 0.55rem 0.75rem;">
+                        <p id="patientTaiwaneseSubText" style="margin: 0; font-weight: 600; font-size: 0.82rem; color: #065f46;">
+                          （台語：你好，這馬欲來量血壓。請配合護理師，躺平佇床仔頂，雙跤伸直莫交挐，身軀放輕鬆。）
+                        </p>
+                      </div>
                     </details>
                   </div>
 
@@ -315,7 +319,7 @@
 
             <!-- 摺疊收納：次要病患資料與臨床備註 -->
             <details class="collapsible-drawer" style="margin-bottom: 1rem;">
-              <summary>👤 更多病患資料與臨床備註 (年齡 / 性別 / 部位 / 時間 / 備註)</summary>
+              <summary><span>👤 更多病患資料與臨床備註 (年齡 / 性別 / 部位 / 時間 / 備註)</span></summary>
               <div class="collapsible-drawer-body">
                 <div class="patient-info-grid" style="margin-bottom: 0; background: transparent; border: none; padding: 0;">
                   <div class="form-field">
@@ -374,11 +378,11 @@
             </div>
 
             <!-- 臨床計算與判讀基準之權威醫學文獻出處 (PubMed / 台灣臨床指引) -->
-            <details style="margin-bottom: 1.15rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0.7rem 1rem; font-size: 0.83rem; color: #334155;" class="no-print">
-              <summary style="font-weight: 700; cursor: pointer; color: #0b4f8c; user-select: none;">
-                📚 檢視本系統「即時壓差計算與臨床判讀邏輯」之權威醫學文獻出處 (PubMed / 台灣高血壓指引)
+            <details class="collapsible-drawer" style="margin-bottom: 1.15rem;" class="no-print">
+              <summary>
+                <span>📚 檢視本系統「即時壓差計算與臨床判讀邏輯」之權威醫學文獻出處 (PubMed / 台灣高血壓指引)</span>
               </summary>
-              <div style="margin-top: 0.65rem; display: flex; flex-direction: column; gap: 0.55rem; line-height: 1.5;">
+              <div class="collapsible-drawer-body" style="font-size: 0.82rem; line-height: 1.5; color: #334155;">
                 <div>
                   <strong>1. 姿勢性低血壓標準定義（平躺 5 分鐘後站立 3 分鐘內 ΔSBP 下降 ≥ 20 mmHg 或 ΔDBP 下降 ≥ 10 mmHg；合併仰臥位高血壓者參考 ΔSBP 下降 ≥ 30 mmHg）：</strong><br />
                   • Freeman R, Wieling W, Axelrod FB, et al. <em>Consensus statement on the definition of orthostatic hypotension, neurally mediated syncope and the postural tachycardia syndrome.</em> <strong>Clin Auton Res.</strong> 2011 Apr;21(2):69-72.

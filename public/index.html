@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>姿勢性低血壓測量語音指導與臨床記錄系統</title>
+  <link rel="stylesheet" href="css/ios-theme.css" />
+</head>
+<body>
+
+  <!-- 側邊欄導覽抽屜 (Off-canvas Sidebar Drawer) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+  <aside class="app-sidebar" id="appSidebar" aria-label="系統功能選單">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-icon">🩺</span>
+        <span class="sidebar-brand-title">功能選單</span>
+      </div>
+      <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="關閉選單">✕</button>
+    </div>
+    <div class="sidebar-body">
+      <nav class="sidebar-nav-tabs" aria-label="功能頁籤">
+        <button type="button" class="sidebar-tab-btn active" data-tab="tab-workspace">
+          <span class="sidebar-tab-icon">📋</span>
+          <div class="sidebar-tab-info">
+            <strong>測量指導與即時記錄</strong>
+          </div>
+        </button>
+        <button type="button" class="sidebar-tab-btn" data-tab="tab-history">
+          <span class="sidebar-tab-icon">🗂️</span>
+          <div class="sidebar-tab-info">
+            <strong>歷史紀錄管理</strong>
+          </div>
+          <span class="badge-count" id="historyCountBadge">0</span>
+        </button>
+        <button type="button" class="sidebar-tab-btn" data-tab="tab-settings">
+          <span class="sidebar-tab-icon">⚙️</span>
+          <div class="sidebar-tab-info">
+            <strong>語音、輕音樂與時間設定</strong>
+          </div>
+        </button>
+      </nav>
+      <div class="sidebar-section-divider"></div>
+      <div class="sidebar-section-title">測量資料快捷操作</div>
+      <div class="sidebar-actions-group">
+        <button type="button" class="sidebar-action-btn" id="loadDemoCaseBtn" title="帶入一組典型姿勢性低血壓陽性數據以供測試">
+          <span class="sidebar-action-icon">🧪</span>
+          <div class="sidebar-action-info">
+            <strong>帶入範例數據</strong>
+          </div>
+        </button>
+        <button type="button" class="sidebar-action-btn" id="resetFormBtn" title="清空目前表單重新開始">
+          <span class="sidebar-action-icon">🔄</span>
+          <div class="sidebar-action-info">
+            <strong>清空重填</strong>
+          </div>
+        </button>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <span class="sidebar-footer-text">Orthostatic Hypotension System v2.1</span>
+    </div>
+  </aside>
+
+  <!-- 頂部導覽與即時音訊狀態列 -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-icon" aria-hidden="true">🩺</div>
+        <div class="brand-title">
+          <h1>姿勢性低血壓測量語音指導與臨床記錄系統</h1>
+          <p>Orthostatic Hypotension Guided Measurement &amp; Clinical Documentation System</p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="開啟功能選單" title="展開系統功能選單">
+          <span class="sidebar-toggle-icon" aria-hidden="true">☰</span>
+          <span class="sidebar-current-label" id="currentNavLabel">📋 測量指導與即時記錄</span>
+          <span class="sidebar-toggle-chevron" aria-hidden="true">▾</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容區塊 -->
+  <main class="main-container">
+
+    <!-- 頁籤 1：雙欄聯動工作區 (第一部分：語音指導 + 第二部分：臨床記錄) -->
+    <section id="tab-workspace" class="tab-panel active">
+
+      <!-- 手機／平板專用：第一部分與第二部分快速切換列 (保留語音指導與記錄血壓雙頁箋，高度鎖定不跳動) -->
+      <div class="mobile-part-switcher no-print" id="mobilePartSwitcher">
+        <div class="mobile-part-switcher-inner">
+          <button type="button" class="mobile-part-btn active" id="mobileShowPart1Btn">
+            <span id="mobilePart1BtnText">⏱️ 語音指導</span>
+            <span class="mobile-mini-timer-badge" id="mobileMiniTimerBadge">準備</span>
+          </button>
+          <button type="button" class="mobile-part-btn part2-btn" id="mobileShowPart2Btn">
+            <span>📝 記錄血壓與判讀</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="workspace-grid mobile-view-part1" id="workspaceGrid">
+
+        <!-- ================================================================
+             第一部分：互動式語音測量指導與等待輕音樂面板
+             ================================================================ -->
+        <div class="panel-card guidance-column">
+          <div class="panel-header">
+            <div class="panel-header-title">
+              <span class="part-tag">第一部分</span>
+              <h2>姿勢性低血壓測量語音指導與輕音樂計時 (支援台語／國語)</h2>
+            </div>
+          </div>
+
+          <div class="panel-body">
+            <!-- 階段進度條 (可點擊切換任意階段，再次點擊當前階段可直接播放) -->
+            <div class="stepper-track" id="stepperTrack" aria-label="測量階段進度"></div>
+
+            <!-- ============================================================
+                 一體化「當前階段顯示 ＋ 語音/輕音樂播放與計時主控台」
+                 核心按鈕一目了然，次要設定收合於摺疊抽屜內
+                 ============================================================ -->
+            <div class="current-stage-banner">
+              <div class="stage-header-row">
+                <div class="stage-meta-row">
+                  <span class="stage-badge" id="currentStageBadge">準備階段</span>
+                  <div class="stage-voice-status">
+                    <span class="pulse-dot" id="voicePulseDot"></span>
+                    <span id="voiceStatusText">國台語待命</span>
+                  </div>
+                </div>
+                <h3 class="stage-title-text" id="currentStageTitle">階段一：測量前準備與壓脈帶確認</h3>
+              </div>
+
+              <!-- 中央整合區：左側圓形計時器 ＋ 右側主播放與階段控制面板 -->
+              <div class="stage-console-body">
+                <div class="timer-centerpiece">
+                  <div class="timer-ring-container" id="timerRingContainer">
+                    <svg class="timer-svg" viewBox="0 0 200 200">
+                      <circle class="timer-circle-bg" cx="100" cy="100" r="85"></circle>
+                      <circle class="timer-circle-progress" id="timerCircleProgress" cx="100" cy="100" r="85"></circle>
+                    </svg>
+                    <div class="timer-readout">
+                      <span class="timer-digits" id="timerDigits">手動確認</span>
+                      <span class="timer-subtext" id="timerSubtext">點擊主按鈕開始語音引導</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 緊貼階段與計時器的核心播放控制面板 -->
+                <div class="stage-playback-controls">
+                  <button type="button" class="btn btn-primary-large" id="primaryStepActionBtn">
+                    🔊 播報「測量前準備」雙角色語音提示
+                  </button>
+
+                  <div class="secondary-actions-row">
+                    <button type="button" class="btn btn-secondary" id="replayVoiceBtn">
+                      🔁 重播語音
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="pauseResumeTimerBtn" disabled>
+                      ⏸ 暫停
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="nextStepBtn">
+                      ⏭ 下一階段
+                    </button>
+                  </div>
+
+                  <button type="button" class="stage-audio-btn" id="headerMusicToggleBtn" title="隨時開啟或暫停等待期間的舒緩輕音樂" style="width: 100%;">
+                    🎵 播放舒緩輕音樂
+                  </button>
+
+                  <!-- 快捷鍵：一鍵跳轉/聚焦至第二部分輸入當前階段血壓（步驟一準備階段預設為不可啟動 disabled） -->
+                  <button type="button" class="btn btn-jump-record" id="jumpToRecordBtn" disabled>
+                    📝 本階段（測量前準備）無需記錄血壓與心跳
+                  </button>
+
+                  <!-- 摺疊收納：平時不需頻繁變動的語音模式、獨立音量與流程選項 -->
+                  <details class="collapsible-drawer">
+                    <summary><span>🎛️ 語音語言、音量微調與流程選項</span></summary>
+                    <div class="collapsible-drawer-body">
+                      <div class="drawer-lang-row">
+                        <select id="headerLangModeSelect" class="stage-lang-select" title="快速切換國語／台語播報搭配模式">
+                          <option value="patient_tw_staff_zh" selected>🗣️ 病患：台語 ／ 醫護：國語 (推薦)</option>
+                          <option value="all_tw">🗣️ 全台語模式 (病患＋醫護皆台語)</option>
+                          <option value="patient_both_staff_zh">🗣️ 病患：國語＋台語 ／ 醫護：國語</option>
+                          <option value="all_zh">🗣️ 全國語模式 (台灣國語 zh-TW)</option>
+                        </select>
+                        <button type="button" class="stage-audio-btn" id="headerTestVoiceBtn" title="測試台語與台灣國語語音">
+                          🔊 測試語音
+                        </button>
+                      </div>
+
+                      <div class="quick-volume-sliders">
+                        <div class="vol-slider-item">
+                          <span style="font-weight: 700; color: #047857; white-space: nowrap;">🔊 台語音量：</span>
+                          <input type="range" id="quickTwVolInput" min="0.0" max="4.0" step="0.1" value="2.2" style="accent-color: #0d8a72;" title="獨立調整台語語音音量（支援 0% 靜音至 400% 增幅放大）" />
+                          <strong id="quickTwVolVal" style="min-width: 42px; text-align: right; color: #047857;">220%</strong>
+                        </div>
+                        <div class="vol-slider-item">
+                          <span style="font-weight: 700; color: #1d4ed8; white-space: nowrap;">🔉 國語音量：</span>
+                          <input type="range" id="quickZhVolInput" min="0.0" max="2.0" step="0.05" value="0.65" style="accent-color: #0f6cbd;" title="獨立調整國語語音音量（透過 Web Audio GainNode 即時控音，支援 0% 靜音至 200% 增幅）" />
+                          <strong id="quickZhVolVal" style="min-width: 42px; text-align: right; color: #1d4ed8;">65%</strong>
+                        </div>
+                      </div>
+
+                      <div class="protocol-toolbar" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
+                        <label class="toggle-label" title="勾選後將在平躺與站立之間增加「坐姿過渡與測量」階段">
+                          <input type="checkbox" id="includeSittingToggle" />
+                          <span>包含「坐姿過渡測量」階段</span>
+                        </label>
+                        <label class="toggle-label" title="開啟後將等待計時縮短為 15 秒，方便快速展示、教學或測試語音流程">
+                          <input type="checkbox" id="quickDemoToggle" />
+                          <span>⚡ 15秒快速測試模式</span>
+                        </label>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+
+            <!-- 雙角色語音與動作提示卡 (可摺疊收合抽屜，釋放畫面垂直空間，點擊隨時展開查閱) -->
+            <details class="collapsible-drawer dual-role-drawer" id="dualRoleDrawer">
+              <summary>
+                <span>💬 病患動作指引與醫護台詞對話卡</span>
+              </summary>
+              <div class="collapsible-drawer-body">
+                <div class="dual-role-cards">
+                  <!-- 對病患的指導 -->
+                  <div class="role-card patient-card">
+                    <div class="role-card-header">
+                      <span class="role-badge">🛌 病患動作指引</span>
+                      <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                        <button type="button" class="speak-single-btn" id="speakPatientTwBtn">
+                          🔊 台語
+                        </button>
+                        <button type="button" class="speak-single-btn" id="speakPatientOnlyBtn">
+                          🔊 國語
+                        </button>
+                      </div>
+                    </div>
+                    <p class="role-card-content" id="patientInstructionText">
+                      請配合醫護人員躺平在檢查床上，雙腿自然伸直、不要交叉，全身放鬆即可。
+                    </p>
+                    <details class="collapsible-drawer" style="margin-top: 0.45rem; border-color: rgba(16, 185, 129, 0.25);">
+                      <summary style="padding: 0.45rem 0.75rem; font-size: 0.8rem; background: rgba(16, 185, 129, 0.08); color: #047857;">
+                        <span>💬 檢視台語台詞字幕</span>
+                      </summary>
+                      <div class="collapsible-drawer-body" style="padding: 0.55rem 0.75rem;">
+                        <p id="patientTaiwaneseSubText" style="margin: 0; font-weight: 600; font-size: 0.82rem; color: #065f46;">
+                          （台語：你好，這馬欲來量血壓。請配合護理師，躺平佇床仔頂，雙跤伸直莫交挐，身軀放輕鬆。）
+                        </p>
+                      </div>
+                    </details>
+                  </div>
+
+                  <!-- 對醫護人員的指導 -->
+                  <div class="role-card staff-card">
+                    <div class="role-card-header">
+                      <span class="role-badge">🧑‍⚕️ 醫護人員動作</span>
+                      <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                        <button type="button" class="speak-single-btn" id="speakStaffOnlyBtn">
+                          🔊 國語
+                        </button>
+                        <button type="button" class="speak-single-btn" id="speakStaffTwBtn">
+                          🔊 台語
+                        </button>
+                      </div>
+                    </div>
+                    <p class="role-card-content" id="staffInstructionText">
+                      請確認病患基本資料，選擇合適尺寸的血壓壓脈帶綁於上臂（與心臟同高），並引導病患平躺於檢查床上。
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <!-- 緊急安全中止按鈕 -->
+            <div class="action-buttons-grid">
+              <button type="button" class="btn btn-warning-abort" id="emergencyAbortBtn">
+                ⚠️ 病患頭暈不適／緊急中止站立
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================
+             第二部分：臨床血壓心率記錄、自動判讀與病歷匯出面板
+             ================================================================ -->
+        <div class="panel-card record-column">
+          <!-- 列印專用醫院報告標頭 -->
+          <div class="print-only-header">
+            <h1>姿勢性低血壓臨床檢測報告單 (Orthostatic Blood Pressure Report)</h1>
+            <p>診斷基準：站立 3 分鐘內收縮壓 (SBP) 下降 ≥ 20 mmHg 或 舒張壓 (DBP) 下降 ≥ 10 mmHg</p>
+          </div>
+
+          <div class="panel-header">
+            <div class="panel-header-title">
+              <span class="part-tag part-two">第二部分</span>
+              <h2>病患測量結果記錄與臨床自動判讀</h2>
+            </div>
+          </div>
+
+          <div class="panel-body">
+            <!-- 病患核心基本資料（僅保留最常填的病歷號與姓名，其餘收納至下方摺疊抽屜） -->
+            <div class="patient-info-grid" style="margin-bottom: 0.65rem;">
+              <div class="form-field">
+                <label for="patientChartId">病歷號 (Chart ID)</label>
+                <input type="text" id="patientChartId" placeholder="例如：A1234567" />
+              </div>
+              <div class="form-field">
+                <label for="patientName">病患姓名</label>
+                <input type="text" id="patientName" placeholder="請輸入姓名" />
+              </div>
+            </div>
+
+            <!-- 摺疊收納：次要病患資料與臨床備註 -->
+            <details class="collapsible-drawer" style="margin-bottom: 1rem;">
+              <summary><span>👤 更多病患資料與臨床備註 (年齡 / 性別 / 部位 / 時間 / 備註)</span></summary>
+              <div class="collapsible-drawer-body">
+                <div class="patient-info-grid" style="margin-bottom: 0; background: transparent; border: none; padding: 0;">
+                  <div class="form-field">
+                    <label for="patientAge">年齡 (歲)</label>
+                    <input type="number" id="patientAge" min="1" max="120" placeholder="例如：72" />
+                  </div>
+                  <div class="form-field">
+                    <label for="patientGender">性別</label>
+                    <select id="patientGender">
+                      <option value="">未選擇</option>
+                      <option value="男">男 (Male)</option>
+                      <option value="女">女 (Female)</option>
+                      <option value="其他">其他</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="patientArm">測量部位</label>
+                    <select id="patientArm">
+                      <option value="左手 (Left Arm)">左手 (Left Arm)</option>
+                      <option value="右手 (Right Arm)">右手 (Right Arm)</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="patientCuffSize">壓脈帶尺寸</label>
+                    <select id="patientCuffSize">
+                      <option value="標準成人壓脈帶 (Standard)">標準成人壓脈帶 (Standard)</option>
+                      <option value="大號成人壓脈帶 (Large)">大號成人壓脈帶 (Large)</option>
+                      <option value="小號成人壓脈帶 (Small)">小號成人壓脈帶 (Small)</option>
+                    </select>
+                  </div>
+                  <div class="form-field field-full-width">
+                    <label for="patientMeasuredAt">測量日期與時間</label>
+                    <input type="datetime-local" id="patientMeasuredAt" />
+                  </div>
+                </div>
+
+                <div class="form-field">
+                  <label for="patientNotes">醫護臨床備註（如：目前服用之降血壓藥物、昨日飲水量、下床步態觀察等）</label>
+                  <textarea id="patientNotes" rows="2" placeholder="可輸入相關病史、用藥或臨床觀察備註..."></textarea>
+                </div>
+              </div>
+            </details>
+
+            <!-- 各階段血壓、心跳與症狀動態輸入區 -->
+            <div class="measurement-stages-list" id="measurementStagesContainer"></div>
+
+            <!-- 即時臨床自動判讀橫幅 -->
+            <div class="assessment-banner status-pending" id="clinicalAssessmentBanner">
+              <div class="assessment-headline" id="assessmentHeadline">
+                🩺 尚待輸入完整血壓數值
+              </div>
+              <p class="assessment-summary" id="assessmentSummary">
+                請先完成「平躺基準值」以及「站立 1 分鐘 / 3 分鐘」之血壓與心跳輸入，系統將自動計算壓差並判讀。
+              </p>
+              <ul class="assessment-notes-list" id="assessmentNotesList"></ul>
+            </div>
+
+            <!-- 臨床計算與判讀基準之權威醫學文獻出處 (PubMed / 台灣臨床指引) -->
+            <details class="collapsible-drawer" style="margin-bottom: 1.15rem;" class="no-print">
+              <summary>
+                <span>📚 檢視本系統「即時壓差計算與臨床判讀邏輯」之權威醫學文獻出處 (PubMed / 台灣高血壓指引)</span>
+              </summary>
+              <div class="collapsible-drawer-body" style="font-size: 0.82rem; line-height: 1.5; color: #334155;">
+                <div>
+                  <strong>1. 姿勢性低血壓標準定義（平躺 5 分鐘後站立 3 分鐘內 ΔSBP 下降 ≥ 20 mmHg 或 ΔDBP 下降 ≥ 10 mmHg；合併仰臥位高血壓者參考 ΔSBP 下降 ≥ 30 mmHg）：</strong><br />
+                  • Freeman R, Wieling W, Axelrod FB, et al. <em>Consensus statement on the definition of orthostatic hypotension, neurally mediated syncope and the postural tachycardia syndrome.</em> <strong>Clin Auton Res.</strong> 2011 Apr;21(2):69-72.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/21431947/" target="_blank" rel="noopener">PMID: 21431947</a> | <a href="https://doi.org/10.1007/s10286-011-0119-5" target="_blank" rel="noopener">DOI: 10.1007/s10286-011-0119-5</a>]
+                </div>
+                <div>
+                  <strong>2. 台灣本土高血壓與高齡姿勢性低血壓臨床診療指引（台灣心臟學會 TSOC ／ 台灣高血壓學會 THS）：</strong><br />
+                  • Wang TD, Chiang CE, Chao TH, et al. <em>2022 Guidelines of the Taiwan Society of Cardiology and the Taiwan Hypertension Society for the Management of Hypertension.</em> <strong>Acta Cardiol Sin.</strong> 2022 May;38(3):225-325.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/35673334/" target="_blank" rel="noopener">PMID: 35673334</a> | <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9121756/" target="_blank" rel="noopener">PMCID: PMC9121756</a>]<br />
+                  • Wu PS, Chao CT, Hsiao CH, et al. <em>Blood pressure targets, medication consideration and unique concerns in elderly hypertension IV: Focus on frailty, orthostatic hypotension, and resistant hypertension.</em> <strong>J Formos Med Assoc.</strong> 2025 Jul;124 Suppl 1:S63-S69.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/39370367/" target="_blank" rel="noopener">PMID: 39370367</a> | <a href="https://doi.org/10.1016/j.jfma.2024.09.022" target="_blank" rel="noopener">DOI: 10.1016/j.jfma.2024.09.022</a>]
+                </div>
+                <div>
+                  <strong>3. 神經源性 (Neurogenic) vs. 非神經源性姿勢性低血壓之心率代償鑑別（ΔHR &lt; 15 bpm 及 ΔHR/ΔSBP 比值 &lt; 0.5 bpm/mmHg）：</strong><br />
+                  • Norcliffe-Kaufmann L, Kaufmann H, Palma JA, et al. <em>Orthostatic heart rate changes in patients with autonomic failure caused by neurodegenerative synucleinopathies.</em> <strong>Ann Neurol.</strong> 2018 Mar;83(3):522-531.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/29405350/" target="_blank" rel="noopener">PMID: 29405350</a> | <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5867255/" target="_blank" rel="noopener">PMCID: PMC5867255</a>]<br />
+                  • Gibbons CH, Schmidt P, Biaggioni I, et al. <em>The recommendations of a consensus panel for the screening, diagnosis, and treatment of neurogenic orthostatic hypotension and associated supine hypertension.</em> <strong>J Neurol.</strong> 2017 Aug;264(8):1567-1582.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/28050656/" target="_blank" rel="noopener">PMID: 28050656</a> | <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5533816/" target="_blank" rel="noopener">PMCID: PMC5533816</a>]
+                </div>
+                <div>
+                  <strong>4. 姿勢性心搏過速症候群 (POTS) 篩檢標準（站立後無姿勢性低血壓，且成人心率增加 ΔHR ≥ 30 bpm 或絕對心率 ≥ 120 bpm）：</strong><br />
+                  • Sheldon RS, Grubb BP 2nd, Olshansky B, et al. <em>2015 Heart Rhythm Society expert consensus statement on the diagnosis and treatment of postural tachycardia syndrome, inappropriate sinus tachycardia, and vasovagal syncope.</em> <strong>Heart Rhythm.</strong> 2015 Jun;12(6):e41-e63.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/25980576/" target="_blank" rel="noopener">PMID: 25980576</a> | <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5267948/" target="_blank" rel="noopener">PMCID: PMC5267948</a>]
+                </div>
+              </div>
+            </details>
+
+            <!-- 儲存與病歷匯出按鈕列 -->
+            <div class="record-actions-bar">
+              <button type="button" class="btn btn-save" id="saveRecordBtn">
+                💾 儲存本次紀錄
+              </button>
+              <button type="button" class="btn btn-outline" id="copyClinicalNoteBtn">
+                📋 複製病歷摘要 (貼入 HIS)
+              </button>
+              <button type="button" class="btn btn-outline" id="printReportBtn">
+                🖨️ 列印 / 匯出 PDF 報告
+              </button>
+              <button type="button" class="btn btn-outline" id="exportCurrentCsvBtn">
+                📊 匯出 Excel (CSV)
+              </button>
+            </div>
+
+            <!-- 列印專用醫護簽章尾註 -->
+            <div class="print-only-footer">
+              <span>執行測量醫護人員簽章：__________________________</span>
+              <span>醫師判讀簽章：__________________________</span>
+              <span>列印時間：<script>document.write(new Date().toLocaleDateString('zh-TW'));</script></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 頁籤 2：本機歷史紀錄管理 -->
+    <section id="tab-history" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-header-title">
+            <span class="part-tag part-two">歷史資料庫</span>
+            <h2>已儲存之姿勢性低血壓測量紀錄</h2>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="history-toolbar">
+            <input type="search" id="historySearchInput" class="search-input" placeholder="🔍 搜尋病患姓名或病歷號..." />
+            <button type="button" class="btn btn-save" id="historyExportCsvBtn">
+              📊 匯出全部紀錄為 Excel (CSV)
+            </button>
+          </div>
+
+          <div class="history-table-wrapper">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>檢測日期時間</th>
+                  <th>病歷號</th>
+                  <th>姓名 (年齡)</th>
+                  <th>平躺 BP (HR)</th>
+                  <th>站立 1 分 BP (ΔSBP)</th>
+                  <th>站立 3 分 BP (ΔSBP)</th>
+                  <th>自動判讀結果</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 頁籤 3：台灣語音、輕音樂與倒數時間設定 -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-header-title">
+            <span class="part-tag">系統設定</span>
+            <h2>台灣國語／台語雙語提示、舒緩輕音樂與各階段時間個人化設定</h2>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <div class="settings-grid">
+
+            <!-- 語音設定卡 -->
+            <div class="setting-group-card">
+              <h3>🗣️ 台灣國語與台語 (Taiwanese Hokkien) 語音設定</h3>
+
+              <div class="form-field">
+                <label for="settingsLangModeSelect">預設語音播報語言搭配模式</label>
+                <select id="settingsLangModeSelect">
+                  <option value="patient_tw_staff_zh" selected>病患：台語 ／ 醫護人員：國語 (推薦臨床長者使用)</option>
+                  <option value="all_tw">全台語模式 (對病患與對醫護人員皆播報台語)</option>
+                  <option value="patient_both_staff_zh">病患：先國語再台語雙聲道 ／ 醫護人員：國語</option>
+                  <option value="all_zh">全國語模式 (全部使用台灣國語 zh-TW)</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label for="twVoiceSelect">選擇台灣國語語音聲線（自動優先鎖定 zh-TW 語音）</label>
+                <select id="twVoiceSelect">
+                  <option value="">載入系統台灣語音中...</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label>語音播報語速（同時適用於國語與台語音檔）：<strong id="speechRateVal">0.96x</strong></label>
+                <div class="range-row">
+                  <span>慢</span>
+                  <input type="range" id="speechRateInput" min="0.80" max="1.25" step="0.02" value="0.96" />
+                  <span>快</span>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label>🔊 台語語音獨立音量（含強效增幅放大器，最高 400%）：<strong id="taiwaneseVolVal">220%</strong></label>
+                <div class="range-row">
+                  <span>靜音</span>
+                  <input type="range" id="taiwaneseVolInput" min="0.0" max="4.0" step="0.1" value="2.2" />
+                  <span>400% (超大聲)</span>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label>🔉 國語語音獨立音量（透過 Web Audio GainNode 即時控音，最高 200%）：<strong id="speechVolVal">65%</strong></label>
+                <div class="range-row">
+                  <span>靜音</span>
+                  <input type="range" id="speechVolInput" min="0.0" max="2.0" step="0.05" value="0.65" />
+                  <span>200% (增幅)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 舒緩輕音樂設定卡 -->
+            <div class="setting-group-card">
+              <h3>🎵 等待期間舒緩輕音樂設定</h3>
+              <div class="form-field">
+                <label for="musicStyleSelect">選擇等待期間背景輕音樂風格</label>
+                <select id="musicStyleSelect">
+                  <option value="piano_pad">🎹 內建療癒鋼琴與溫暖弦樂襯底 (60 BPM 舒緩慢板)</option>
+                  <option value="healing_bells">🔔 內建自然冥想泛音鐘聲 (深度呼吸放鬆)</option>
+                  <option value="custom_mp3">📂 使用下方上傳的自訂 MP3 / WAV 音樂檔</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label>輕音樂平時音量：<strong id="musicVolVal">45%</strong>（語音播報時會自動智慧閃避調降音量）</label>
+                <div class="range-row">
+                  <span>靜音</span>
+                  <input type="range" id="musicVolInput" min="0.05" max="1.0" step="0.05" value="0.45" />
+                  <span>100%</span>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label for="customMusicFileInput">上傳診間自訂輕音樂檔案 (.mp3 / .wav)</label>
+                <input type="file" id="customMusicFileInput" accept="audio/*" />
+              </div>
+            </div>
+
+            <!-- 各階段倒數秒數自訂卡 -->
+            <div class="setting-group-card">
+              <h3>⏱️ 各階段等待計時秒數設定</h3>
+              <div class="form-field">
+                <label for="durSupineRest">平躺靜息等待時間 (秒) — 臨床標準建議 300 秒 (5 分鐘)</label>
+                <input type="number" id="durSupineRest" min="10" max="1200" value="300" />
+              </div>
+              <div class="form-field">
+                <label for="durSitting">坐姿過渡等待時間 (秒) — 預設 60 秒 (1 分鐘)</label>
+                <input type="number" id="durSitting" min="10" max="600" value="60" />
+              </div>
+              <div class="form-field">
+                <label for="durStand1">站立第 1 分鐘測量倒數 (秒) — 臨床標準 60 秒</label>
+                <input type="number" id="durStand1" min="10" max="600" value="60" />
+              </div>
+              <div class="form-field">
+                <label for="durStand3">站立第 1 分鐘後繼續等待至第 3 分鐘 (秒) — 臨床標準 120 秒</label>
+                <input type="number" id="durStand3" min="10" max="600" value="120" />
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 本機個人化設定儲存與還原控制列 -->
+          <div class="settings-actions-bar">
+            <button type="button" class="btn btn-restore-settings" id="restoreDefaultSettingsBtn">
+              🔄 還原為系統預設值
+            </button>
+            <button type="button" class="btn btn-save-settings" id="saveUserSettingsBtn">
+              💾 儲存目前個人化設定至本機
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 右下角通知訊息容器 -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- 載入系統 JavaScript 模組 -->
+  <script src="js/mandarin-audio-data.js"></script>
+  <script src="js/taiwanese-audio-data.js"></script>
+  <script src="js/protocol-steps.js"></script>
+  <script src="js/audio-engine.js"></script>
+  <script src="js/clinical-evaluator.js"></script>
+  <script src="js/storage-export.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

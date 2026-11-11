@@ -722,13 +722,15 @@ body {
    ========================================================================== */
 .stepper-track {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.65rem;
   overflow-x: auto;
-  padding-bottom: 0.65rem;
-  margin-bottom: 1rem;
+  overflow-y: hidden;
+  padding: 8px 8px 12px 8px; /* 提供充足四向緩衝內距，徹底消除點擊放大時被捲軸容器邊界裁切問題 */
+  margin: -4px -8px 0.85rem -8px;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
   scroll-margin-top: 66px;
+  align-items: center;
 }
 
 .stepper-track::-webkit-scrollbar {
@@ -743,29 +745,36 @@ body {
 .step-node {
   flex: 0 0 auto;
   background: #f2f2f7;
-  border: 0.5px solid rgba(60, 60, 67, 0.12);
-  border-radius: 12px;
-  padding: 0.45rem 0.75rem;
+  border: 1.5px solid rgba(60, 60, 67, 0.15);
+  border-radius: 14px;
+  padding: 0.45rem 0.8rem;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              background 0.2s ease, border-color 0.2s ease;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
   min-width: 110px;
-}
-
-.step-node:active {
-  transform: scale(0.96);
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
 }
 
 .step-node:hover {
   background: #e5e5ea;
+  z-index: 2;
+}
+
+.step-node:active {
+  transform: scale(0.97);
 }
 
 .step-node-num {
   font-size: 0.72rem;
   color: var(--ios-label-tertiary);
   font-weight: 600;
+  line-height: 1.2;
 }
 
 .step-node-title {
@@ -773,28 +782,61 @@ body {
   font-weight: 700;
   color: var(--ios-label);
   white-space: nowrap;
+  line-height: 1.25;
 }
 
+/* 狀態 1：選中但尚未完成之步驟（藍色高亮） */
 .step-node.active {
   background: var(--ios-blue);
   color: #ffffff;
   border-color: var(--ios-blue);
   box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35);
-  transform: translateY(-1px);
+  transform: scale(1.02);
+  z-index: 5; /* 確保選中狀態置於頂層，四周邊框與陰影完全展開，絕不被相鄰節點遮蔽 */
 }
 
-.step-node.active .step-node-num,
+.step-node.active .step-node-num {
+  color: rgba(255, 255, 255, 0.88);
+}
+
 .step-node.active .step-node-title {
   color: #ffffff;
+  font-weight: 700;
 }
 
-.step-node.completed {
-  border-color: rgba(52, 199, 89, 0.4);
-  background: rgba(52, 199, 89, 0.08);
+/* 狀態 2：已完成但未被選中之步驟（清新淺綠背景 + 深綠高對比字體） */
+.step-node.completed:not(.active) {
+  border-color: #10b981;
+  background: #ecfdf5;
 }
 
-.step-node.completed .step-node-num {
-  color: var(--ios-green);
+.step-node.completed:not(.active) .step-node-num {
+  color: #047857;
+  font-weight: 700;
+}
+
+.step-node.completed:not(.active) .step-node-title {
+  color: #064e3b;
+  font-weight: 700;
+}
+
+/* 狀態 3：已完成且被點選選中之步驟（飽和深綠底色 + 高對比純白/薄荷綠字體，極致清晰） */
+.step-node.active.completed {
+  background: #15803d !important; /* 深森林綠底色 */
+  border-color: #166534 !important;
+  box-shadow: 0 4px 14px rgba(21, 128, 61, 0.40) !important;
+  transform: scale(1.02);
+  z-index: 5; /* 確保四邊完整邊框浮於頂層 */
+}
+
+.step-node.active.completed .step-node-num {
+  color: #bbf7d0 !important; /* 淺薄荷綠號碼提示 */
+  font-weight: 700;
+}
+
+.step-node.active.completed .step-node-title {
+  color: #ffffff !important; /* 純白高對比粗體標題（對比度 5.4:1） */
+  font-weight: 800;
 }
 
 /* ==========================================================================
@@ -1374,6 +1416,7 @@ button.btn-primary-large:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.6rem;
   list-style: none;
   background: #f2f2f7;
   transition: background 0.15s ease;
@@ -1386,11 +1429,31 @@ button.btn-primary-large:disabled {
   display: none;
 }
 
+.collapsible-drawer > summary > span,
+.collapsible-drawer > summary > *:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+
 .collapsible-drawer > summary::after {
-  content: "▾ 展開";
-  font-size: 0.78rem;
+  content: "展開 ▾";
+  font-size: 0.74rem;
+  font-weight: 700;
   color: var(--ios-blue);
-  font-weight: 600;
+  background: rgba(0, 122, 255, 0.10);
+  border: 0.5px solid rgba(0, 122, 255, 0.25);
+  border-radius: 999px;
+  padding: 0.22rem 0.65rem;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 122, 255, 0.08);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .collapsible-drawer[open] > summary {
@@ -1400,7 +1463,11 @@ button.btn-primary-large:disabled {
 }
 
 .collapsible-drawer[open] > summary::after {
-  content: "▴ 收合";
+  content: "收合 ▴";
+  color: var(--ios-label-secondary);
+  background: rgba(120, 120, 128, 0.12);
+  border-color: rgba(60, 60, 67, 0.18);
+  box-shadow: none;
 }
 
 .collapsible-drawer-body {
@@ -1838,30 +1905,48 @@ button.btn-primary-large:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.45rem;
+  gap: 0.6rem;
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .symptoms-details > summary::-webkit-details-marker {
   display: none;
 }
 
+.symptoms-details > summary > span,
+.symptoms-details > summary > *:first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+  word-break: break-word;
+}
+
 .symptoms-details > summary::after {
   content: "展開 ▾";
   font-size: 0.74rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--ios-blue);
-  white-space: nowrap;
-  padding: 0.15rem 0.5rem;
-  background: rgba(0, 122, 255, 0.09);
-  border-radius: 6px;
-  flex-shrink: 0;
-  transition: all 0.15s ease;
+  background: rgba(0, 122, 255, 0.10);
+  border: 0.5px solid rgba(0, 122, 255, 0.25);
+  border-radius: 999px;
+  padding: 0.22rem 0.65rem;
+  white-space: nowrap !important;
+  flex-shrink: 0 !important;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.5rem;
+  box-shadow: 0 1px 3px rgba(0, 122, 255, 0.08);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .symptoms-details[open] > summary::after {
   content: "收合 ▴";
-  color: var(--ios-label-tertiary);
-  background: rgba(60, 60, 67, 0.08);
+  color: var(--ios-label-secondary);
+  background: rgba(120, 120, 128, 0.12);
+  border-color: rgba(60, 60, 67, 0.18);
+  box-shadow: none;
 }
 
 .symptoms-row {
