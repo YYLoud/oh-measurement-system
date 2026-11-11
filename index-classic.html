@@ -1,0 +1,630 @@
+﻿<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>憪踹?找?銵憯?(OH) 皜祇?隤???摨??頂蝯?(iOS 閬死憓撥??</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <!-- ?湧?甈?閬賣撅?(Off-canvas Sidebar Drawer) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+  <aside class="app-sidebar" id="appSidebar" aria-label="蝟餌絞??詨">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-icon">?征</span>
+        <span class="sidebar-brand-title">??詨</span>
+      </div>
+      <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="???詨">??/button>
+    </div>
+    <div class="sidebar-body">
+      <nav class="sidebar-nav-tabs" aria-label="??惜">
+        <button type="button" class="sidebar-tab-btn active" data-tab="tab-workspace">
+          <span class="sidebar-tab-icon">??</span>
+          <div class="sidebar-tab-info">
+            <strong>皜祇????????/strong>
+            <small>7 甇仿?隤撘???憯??????脣閰?/small>
+          </div>
+        </button>
+        <button type="button" class="sidebar-tab-btn" data-tab="tab-history">
+          <span class="sidebar-tab-icon">??儭?/span>
+          <div class="sidebar-tab-info">
+            <strong>甇瑕蝝?恣??/strong>
+            <small>?風瑼Ｚ??IS/SOAP ??CSV ?臬</small>
+          </div>
+          <span class="badge-count" id="historyCountBadge">0</span>
+        </button>
+        <button type="button" class="sidebar-tab-btn" data-tab="tab-settings">
+          <span class="sidebar-tab-icon">??</span>
+          <div class="sidebar-tab-info">
+            <strong>隤???單????身摰?/strong>
+            <small>?函??喲?隤踵?璅◢?潸?蝑?蝘</small>
+          </div>
+        </button>
+      </nav>
+    </div>
+    <div class="sidebar-footer">
+      <span class="sidebar-footer-text">Orthostatic Hypotension System v2.1</span>
+    </div>
+  </aside>
+
+  <!-- ?撠汗??閮??? -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-icon" aria-hidden="true">?征</div>
+        <div class="brand-title">
+          <h1>憪踹?找?銵憯?(OH) 皜祇?隤???摨??頂蝯?<span class="ios-edition-badge">鵃?iOS 閬死憓撥??/span></h1>
+          <p>Orthostatic Hypotension Guided Measurement &amp; Clinical Documentation System (?啁??嚗隤?隤摨?)</p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="????詨" title="撅?蝟餌絞??詨">
+          <span class="sidebar-toggle-icon" aria-hidden="true">??/span>
+          <span class="sidebar-current-label" id="currentNavLabel">?? 皜祇????????/span>
+          <span class="sidebar-toggle-chevron" aria-hidden="true">??/span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 銝餃摰孵?憛?-->
+  <main class="main-container">
+
+    <!-- ?惜 1嚗?甈?極雿? (蝚砌??典?嚗??單?撠?+ 蝚砌??典?嚗摨??? -->
+    <section id="tab-workspace" class="tab-panel active">
+
+      <!-- ??嚗像?踹??剁?蝚砌??典??洵鈭?翰???? (靽?隤??????憯???嚗?摨阡?摰?頝喳?) -->
+      <div class="mobile-part-switcher no-print" id="mobilePartSwitcher">
+        <div class="mobile-part-switcher-inner">
+          <button type="button" class="mobile-part-btn active" id="mobileShowPart1Btn">
+            <span id="mobilePart1BtnText">?梧? 隤??</span>
+            <span class="mobile-mini-timer-badge" id="mobileMiniTimerBadge">皞?</span>
+          </button>
+          <button type="button" class="mobile-part-btn part2-btn" id="mobileShowPart2Btn">
+            <span>?? 閮?銵憯??方?</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="workspace-grid mobile-view-part1" id="workspaceGrid">
+
+        <!-- ================================================================
+             蝚砌??典?嚗???隤皜祇?????敺??單??Ｘ
+             ================================================================ -->
+        <div class="panel-card guidance-column">
+          <div class="panel-header">
+            <div class="panel-header-title">
+              <span class="part-tag">蝚砌??典?</span>
+              <h2>憪踹?找?銵憯葫???單?撠?頛璅???(?舀?啗?嚗?隤?</h2>
+            </div>
+          </div>
+
+          <div class="panel-body">
+            <!-- ?挾?脣漲璇?(?舫????遙??畾蛛??活暺??嗅??挾?舐?交?? -->
+            <div class="stepper-track" id="stepperTrack" aria-label="皜祇??挾?脣漲"></div>
+
+            <!-- ============================================================
+                 銝擃????畾菟＊蝷?嚗?隤/頛璅?曇?閮?銝餅?啜?                 ?詨???銝?桐??塚?甈∟?閮剖??嗅??潭?撅
+                 ============================================================ -->
+            <div class="current-stage-banner">
+              <div class="stage-header-row">
+                <div class="stage-meta-row">
+                  <span class="stage-badge" id="currentStageBadge">皞??挾</span>
+                  <div class="stage-voice-status">
+                    <span class="pulse-dot" id="voicePulseDot"></span>
+                    <span id="voiceStatusText">?隤???/span>
+                  </div>
+                </div>
+                <h3 class="stage-title-text" id="currentStageTitle">?挾銝嚗葫??皞????葆蝣箄?</h3>
+              </div>
+
+              <!-- 銝剖亢?游??嚗椰?游?敶Ｚ?? 嚗??喳銝餅?曇??挾?批?Ｘ -->
+              <div class="stage-console-body">
+                <div class="timer-centerpiece">
+                  <div class="timer-ring-container" id="timerRingContainer">
+                    <svg class="timer-svg" viewBox="0 0 200 200">
+                      <circle class="timer-circle-bg" cx="100" cy="100" r="85"></circle>
+                      <circle class="timer-circle-progress" id="timerCircleProgress" cx="100" cy="100" r="85"></circle>
+                    </svg>
+                    <div class="timer-readout">
+                      <span class="timer-digits" id="timerDigits">??蝣箄?</span>
+                      <span class="timer-subtext" id="timerSubtext">暺?銝餅???憪??喳?撠?/span>
+                    </div>
+                  </div>
+
+                  <!-- ?∪閮??挾銋?撅祈??單?暸脣漲璇??箏??局嚗器摨??斤??Ｚ歲?? -->
+                  <div class="voice-progress-slot" id="voiceProgressSlot">
+                    <div class="voice-progress-container" id="voiceProgressContainer" aria-live="polite">
+                      <div class="voice-progress-header">
+                        <div class="voice-progress-role">
+                          <span class="voice-wave-bars" id="voiceWaveBars" aria-hidden="true">
+                            <span></span><span></span><span></span><span></span>
+                          </span>
+                          <span class="voice-role-title" id="voiceProgressRoleLabel">?? 隤?內?剖銝?..</span>
+                        </div>
+                        <div class="voice-progress-meta">
+                          <span class="voice-time-text" id="voiceProgressTimeText">00:00 / 00:00</span>
+                        </div>
+                      </div>
+                      <div class="voice-progress-track">
+                        <div class="voice-progress-bar" id="voiceProgressBar" style="width: 0%;"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="music-active-pill" id="musicActivePill" style="display: none;">
+                    <span>? ?楨頛璅?曆葉嚗??唾牧閰望??芸?隤輸??喲?嚗?/span>
+                  </div>
+                </div>
+
+                <!-- 蝺票?挾????敹?暹?園??-->
+                <div class="stage-playback-controls">
+                  <button type="button" class="btn btn-primary-large" id="primaryStepActionBtn">
+                    ?? ?剖?葫??皞???閫隤?內
+                  </button>
+
+                  <div class="secondary-actions-row">
+                    <button type="button" class="btn btn-secondary" id="replayVoiceBtn">
+                      ?? ?隤
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="pauseResumeTimerBtn" disabled>
+                      ???怠?
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="nextStepBtn">
+                      ??銝??挾
+                    </button>
+                  </div>
+
+                  <button type="button" class="stage-audio-btn" id="headerMusicToggleBtn" title="?冽??????敺????楨頛璅? style="width: 100%;">
+                    ? ?剜?楨頛璅?                  </button>
+
+                  <!-- 敹急?蛛?銝?菔歲頧???喟洵鈭?撓?亦??畾菔?憯?甇仿?銝皞??挾?身?箔??臬???disabled嚗?-->
+                  <button type="button" class="btn btn-jump-record" id="jumpToRecordBtn" disabled>
+                    ?? ?祇?畾蛛?皜祇??????⊿?閮?銵憯?敹歲
+                  </button>
+
+                  <!-- ?箇??嗥?嚗像????餌?霈????單芋撘蝡??瘚??賊? -->
+                  <details class="collapsible-drawer">
+                    <summary>??儭?隤隤???凝隤輯?瘚??賊?</summary>
+                    <div class="collapsible-drawer-body">
+                      <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;">
+                        <select id="headerLangModeSelect" class="stage-lang-select" style="flex: 1;" title="敹恍???隤??啗??剖?剝?璅∪?">
+                          <option value="patient_tw_staff_zh" selected>?儭??嚗隤?嚗??怨風嚗?隤?(?刻)</option>
+                          <option value="all_tw">?儭??典隤芋撘?(?嚗霅瑞??啗?)</option>
+                          <option value="patient_both_staff_zh">?儭??嚗?隤??啗? 嚗??怨風嚗?隤?/option>
+                          <option value="all_zh">?儭??典?隤芋撘?(?啁?? zh-TW)</option>
+                        </select>
+                        <button type="button" class="stage-audio-btn" id="headerTestVoiceBtn" title="皜祈岫?啗?????隤???>
+                          ?? 皜祈岫隤
+                        </button>
+                      </div>
+
+                      <div class="quick-volume-sliders">
+                        <div class="vol-slider-item">
+                          <span style="font-weight: 700; color: #047857; white-space: nowrap;">?? ?啗??喲?嚗?/span>
+                          <input type="range" id="quickTwVolInput" min="0.0" max="4.0" step="0.1" value="2.2" style="accent-color: #0d8a72;" title="?函?隤踵?啗?隤?喲?嚗??0% ???400% 憓??曉之嚗? />
+                          <strong id="quickTwVolVal" style="min-width: 42px; text-align: right; color: #047857;">220%</strong>
+                        </div>
+                        <div class="vol-slider-item">
+                          <span style="font-weight: 700; color: #1d4ed8; white-space: nowrap;">?? ???喲?嚗?/span>
+                          <input type="range" id="quickZhVolInput" min="0.0" max="2.0" step="0.05" value="0.65" style="accent-color: #0f6cbd;" title="?函?隤踵??隤?喲?嚗? Web Audio GainNode ?單??折嚗??0% ???200% 憓?嚗? />
+                          <strong id="quickZhVolVal" style="min-width: 42px; text-align: right; color: #1d4ed8;">65%</strong>
+                        </div>
+                      </div>
+
+                      <div class="protocol-toolbar" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
+                        <label class="toggle-label" title="?暸敺??典像頨箄?蝡?銋?憓???憪輸?皜∟?皜祇???畾?>
+                          <input type="checkbox" id="includeSittingToggle" />
+                          <span>???憪輸?皜⊥葫??畾?/span>
+                        </label>
+                        <label class="toggle-label" title="??敺?蝑?閮?蝮桃??15 蝘??嫣噶敹恍?蝷箝?摮豢?皜祈岫隤瘚?">
+                          <input type="checkbox" id="quickDemoToggle" />
+                          <span>??15蝘翰?葫閰行芋撘?/span>
+                        </label>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+
+            <!-- ???脰??唾????內??(?舀??撅???恍?蝛粹?嚗??????? -->
+            <details class="collapsible-drawer dual-role-drawer" id="dualRoleDrawer">
+              <summary>
+                <span>? ??????霅瑕閰?閰勗</span>
+              </summary>
+              <div class="collapsible-drawer-body">
+                <div class="dual-role-cards">
+                  <!-- 撠?????? -->
+                  <div class="role-card patient-card">
+                    <div class="role-card-header">
+                      <span class="role-badge">?? ?????</span>
+                      <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                        <button type="button" class="speak-single-btn" id="speakPatientTwBtn" style="background:#ecfdf5; border-color:#10b981; color:#047857;">
+                          ?? ?啗?
+                        </button>
+                        <button type="button" class="speak-single-btn" id="speakPatientOnlyBtn">
+                          ?? ??
+                        </button>
+                      </div>
+                    </div>
+                    <p class="role-card-content" id="patientInstructionText">
+                      隢??霅瑚犖?∟犖撟喳瑼Ｘ摨?嚗??輯?嗡撓?氬?閬漱???刻澈?暸??喳??                    </p>
+                    <details style="margin-top: 0.35rem; font-size: 0.82rem; color: #15803d;">
+                      <summary style="cursor: pointer; font-weight: 600; user-select: none;">? 瑼Ｚ??啗??啗?摮?</summary>
+                      <p id="patientTaiwaneseSubText" style="margin-top: 0.25rem; font-weight: 600;">
+                        嚗隤?雿末嚗收甈脖???憯???霅瑞?撣恬?頨箏像雿?隞?嚗?頝支撓?渲鈭斗?嚗澈頠?曇?擛?
+                      </p>
+                    </details>
+                  </div>
+
+                  <!-- 撠霅瑚犖?∠??? -->
+                  <div class="role-card staff-card">
+                    <div class="role-card-header">
+                      <span class="role-badge">????儭??怨風鈭箏??</span>
+                      <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
+                        <button type="button" class="speak-single-btn" id="speakStaffOnlyBtn">
+                          ?? ??
+                        </button>
+                        <button type="button" class="speak-single-btn" id="speakStaffTwBtn">
+                          ?? ?啗?
+                        </button>
+                      </div>
+                    </div>
+                    <p class="role-card-content" id="staffInstructionText">
+                      隢Ⅱ隤????祈????豢??撠箏站??憯??葆蝬銝?嚗?敹???嚗?銝血?撠???像頨箸瑼Ｘ摨???                    </p>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <!-- 蝺亙??其葉甇Ｘ???-->
+            <div class="action-buttons-grid">
+              <button type="button" class="btn btn-warning-abort" id="emergencyAbortBtn">
+                ?? ??剜?銝嚗??乩葉甇Ｙ?蝡?              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================================================================
+             蝚砌??典?嚗摨?憯?????霈??甇瑕?粹??             ================================================================ -->
+        <div class="panel-card record-column">
+          <!-- ?撠?恍?勗?璅 -->
+          <div class="print-only-header">
+            <h1>憪踹?找?銵憯摨炎皜砍? (Orthostatic Blood Pressure Report)</h1>
+            <p>閮箸?箸?嚗?蝡?3 ???扳蝮桀? (SBP) 銝? ??20 mmHg ???撐憯?(DBP) 銝? ??10 mmHg</p>
+          </div>
+
+          <div class="panel-header">
+            <div class="panel-header-title">
+              <span class="part-tag part-two">蝚砌??典?</span>
+              <h2>?皜祇?蝯?閮??摨?霈</h2>
+            </div>
+            <div style="display:flex; gap:0.45rem;" class="no-print">
+              <button type="button" class="speak-single-btn" id="loadDemoCaseBtn" title="撣嗅銝蝯?尿?Ｘ找?銵憯?扳?誑靘葫閰?>
+                ?妒 撣嗅蝭??豢?
+              </button>
+              <button type="button" class="speak-single-btn" id="resetFormBtn" title="皜征?桀?銵典???">
+                ?? 皜征?‵
+              </button>
+            </div>
+          </div>
+
+          <div class="panel-body">
+            <!-- ??嚗像?踹??剁??敹恍??洵銝?典?隤??????銝頝喲?靘停?賜??堆??⊿?敺銝??? -->
+            <div class="part2-top-return-bar no-print" id="part2TopReturnBar">
+              <button type="button" class="btn btn-return-to-guidance" id="topJumpBackToGuidanceBtn">
+                <span class="return-icon">漎?</span>
+                <span class="return-label">餈??洵銝?典?嚗??單?撠?閮??匱蝥?銝?挾</span>
+              </button>
+            </div>
+
+            <!-- ??詨??箸鞈?嚗?靽??撣詨‵??甇瑁??????園??嗥??喃??寞?撅? -->
+            <div class="patient-info-grid" style="margin-bottom: 0.65rem;">
+              <div class="form-field">
+                <label for="patientChartId">?風??(Chart ID)</label>
+                <input type="text" id="patientChartId" placeholder="靘?嚗1234567" />
+              </div>
+              <div class="form-field">
+                <label for="patientName">?憪?</label>
+                <input type="text" id="patientName" placeholder="隢撓?亙??? />
+              </div>
+            </div>
+
+            <!-- ?箇??嗥?嚗活閬???????典??酉 -->
+            <details class="collapsible-drawer" style="margin-bottom: 1rem;">
+              <summary>? ?游??鞈??摨?閮?(撟湧翩 / ?批 / ?其? / ?? / ?酉)</summary>
+              <div class="collapsible-drawer-body">
+                <div class="patient-info-grid" style="margin-bottom: 0; background: transparent; border: none; padding: 0;">
+                  <div class="form-field">
+                    <label for="patientAge">撟湧翩 (甇?</label>
+                    <input type="number" id="patientAge" min="1" max="120" placeholder="靘?嚗?2" />
+                  </div>
+                  <div class="form-field">
+                    <label for="patientGender">?批</label>
+                    <select id="patientGender">
+                      <option value="">?芷??/option>
+                      <option value="??>??(Male)</option>
+                      <option value="憟?>憟?(Female)</option>
+                      <option value="?嗡?">?嗡?</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="patientArm">皜祇??其?</label>
+                    <select id="patientArm">
+                      <option value="撌行? (Left Arm)">撌行? (Left Arm)</option>
+                      <option value="?單? (Right Arm)">?單? (Right Arm)</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label for="patientCuffSize">憯?撣嗅偕撖?/label>
+                    <select id="patientCuffSize">
+                      <option value="璅??犖憯?撣?(Standard)">璅??犖憯?撣?(Standard)</option>
+                      <option value="憭扯??犖憯?撣?(Large)">憭扯??犖憯?撣?(Large)</option>
+                      <option value="撠??犖憯?撣?(Small)">撠??犖憯?撣?(Small)</option>
+                    </select>
+                  </div>
+                  <div class="form-field field-full-width">
+                    <label for="patientMeasuredAt">皜祇??交?????/label>
+                    <input type="datetime-local" id="patientMeasuredAt" />
+                  </div>
+                </div>
+
+                <div class="form-field">
+                  <label for="patientNotes">?怨風?典??酉嚗?嚗???其???憯?押?仿ㄡ瘞湧???摨郊??撖?嚗?/label>
+                  <textarea id="patientNotes" rows="2" placeholder="?航撓?亦???脯?交??典?閫撖?閮?.."></textarea>
+                </div>
+              </div>
+            </details>
+
+            <!-- ??畾菔?憯?頝唾?????頛詨? -->
+            <div class="measurement-stages-list" id="measurementStagesContainer"></div>
+
+            <!-- ??嚗像?踹??典翰?琿嚗撓?亙?銵憯?銝?菔??洵銝?典?隤?? -->
+            <div style="margin-bottom: 1rem;" class="no-print">
+              <button type="button" class="btn btn-jump-record" id="jumpBackToGuidanceBtn" style="width: 100%; background: #e6f2ff; color: #0b4f8c; border-color: #93c5fd;">
+                漎? 餈??洵銝?典?嚗??單?撠?閮??匱蝥?銝?挾
+              </button>
+            </div>
+
+            <!-- ?單??典??芸??方?璈怠? -->
+            <div class="assessment-banner status-pending" id="clinicalAssessmentBanner">
+              <div class="assessment-headline" id="assessmentHeadline">
+                ?征 撠?頛詨摰銵憯??              </div>
+              <p class="assessment-summary" id="assessmentSummary">
+                隢?摰??像頨箏皞潦誑??蝡?1 ?? / 3 ????銵憯?敹歲頛詨嚗頂蝯勗??芸?閮?憯榆銝血霈??              </p>
+              <ul class="assessment-notes-list" id="assessmentNotesList"></ul>
+            </div>
+
+            <!-- ?典?閮??霈?箸?銋?憡摮豢??餃??(PubMed / ?啁?典???) -->
+            <details style="margin-bottom: 1.15rem; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0.7rem 1rem; font-size: 0.83rem; color: #334155;" class="no-print">
+              <summary style="font-weight: 700; cursor: pointer; color: #0b4f8c; user-select: none;">
+                ?? 瑼Ｚ??祉頂蝯晞??撌株?蝞??典??方??摩??甈??怠飛??箄? (PubMed / ?啁擃?憯?撘?
+              </summary>
+              <div style="margin-top: 0.65rem; display: flex; flex-direction: column; gap: 0.55rem; line-height: 1.5;">
+                <div>
+                  <strong>1. 憪踹?找?銵憯?皞?蝢抬?撟唾犖 5 ??敺?蝡?3 ?????SBP 銝? ??20 mmHg ???DBP 銝? ??10 mmHg嚗?雿萎趕?乩?擃?憯????SBP 銝? ??30 mmHg嚗?</strong><br />
+                  ??Freeman R, Wieling W, Axelrod FB, et al. <em>Consensus statement on the definition of orthostatic hypotension, neurally mediated syncope and the postural tachycardia syndrome.</em> <strong>Clin Auton Res.</strong> 2011 Apr;21(2):69-72.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/21431947/" target="_blank" rel="noopener">PMID: 21431947</a> | <a href="https://doi.org/10.1007/s10286-011-0119-5" target="_blank" rel="noopener">DOI: 10.1007/s10286-011-0119-5</a>]
+                </div>
+                <div>
+                  <strong>2. ?啁?砍?擃?憯?擃翩憪踹?找?銵憯摨那??撘??啁敹?摮豢? TSOC 嚗??啁擃?憯飛??THS嚗?</strong><br />
+                  ??Wang TD, Chiang CE, Chao TH, et al. <em>2022 Guidelines of the Taiwan Society of Cardiology and the Taiwan Hypertension Society for the Management of Hypertension.</em> <strong>Acta Cardiol Sin.</strong> 2022 May;38(3):225-325.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/35673334/" target="_blank" rel="noopener">PMID: 35673334</a> | <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC9121756/" target="_blank" rel="noopener">PMCID: PMC9121756</a>]<br />
+                  ??Wu PS, Chao CT, Hsiao CH, et al. <em>Blood pressure targets, medication consideration and unique concerns in elderly hypertension IV: Focus on frailty, orthostatic hypotension, and resistant hypertension.</em> <strong>J Formos Med Assoc.</strong> 2025 Jul;124 Suppl 1:S63-S69.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/39370367/" target="_blank" rel="noopener">PMID: 39370367</a> | <a href="https://doi.org/10.1016/j.jfma.2024.09.022" target="_blank" rel="noopener">DOI: 10.1016/j.jfma.2024.09.022</a>]
+                </div>
+                <div>
+                  <strong>3. 蟡?皞?(Neurogenic) vs. ??蝬??批尿?Ｘ找?銵憯?敹?隞???嚗R &lt; 15 bpm ???HR/?SBP 瘥?&lt; 0.5 bpm/mmHg嚗?</strong><br />
+                  ??Norcliffe-Kaufmann L, Kaufmann H, Palma JA, et al. <em>Orthostatic heart rate changes in patients with autonomic failure caused by neurodegenerative synucleinopathies.</em> <strong>Ann Neurol.</strong> 2018 Mar;83(3):522-531.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/29405350/" target="_blank" rel="noopener">PMID: 29405350</a> | <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5867255/" target="_blank" rel="noopener">PMCID: PMC5867255</a>]<br />
+                  ??Gibbons CH, Schmidt P, Biaggioni I, et al. <em>The recommendations of a consensus panel for the screening, diagnosis, and treatment of neurogenic orthostatic hypotension and associated supine hypertension.</em> <strong>J Neurol.</strong> 2017 Aug;264(8):1567-1582.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/28050656/" target="_blank" rel="noopener">PMID: 28050656</a> | <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5533816/" target="_blank" rel="noopener">PMCID: PMC5533816</a>]
+                </div>
+                <div>
+                  <strong>4. 憪踹?批??????黎 (POTS) 蝭拇炎璅?嚗?蝡??∪尿?Ｘ找?銵憯?銝?鈭箏??????HR ??30 bpm ??撠?????120 bpm嚗?</strong><br />
+                  ??Sheldon RS, Grubb BP 2nd, Olshansky B, et al. <em>2015 Heart Rhythm Society expert consensus statement on the diagnosis and treatment of postural tachycardia syndrome, inappropriate sinus tachycardia, and vasovagal syncope.</em> <strong>Heart Rhythm.</strong> 2015 Jun;12(6):e41-e63.
+                  [<a href="https://pubmed.ncbi.nlm.nih.gov/25980576/" target="_blank" rel="noopener">PMID: 25980576</a> | <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC5267948/" target="_blank" rel="noopener">PMCID: PMC5267948</a>]
+                </div>
+              </div>
+            </details>
+
+            <!-- ?脣???甇瑕?箸??? -->
+            <div class="record-actions-bar">
+              <button type="button" class="btn btn-save" id="saveRecordBtn">
+                ? ?脣??祆活蝝??              </button>
+              <button type="button" class="btn btn-outline" id="copyClinicalNoteBtn">
+                ?? 銴ˊ?風?? (鞎澆 HIS)
+              </button>
+              <button type="button" class="btn btn-outline" id="printReportBtn">
+                ?儭?? / ?臬 PDF ?勗?
+              </button>
+              <button type="button" class="btn btn-outline" id="exportCurrentCsvBtn">
+                ?? ?臬 Excel (CSV)
+              </button>
+            </div>
+
+            <!-- ?撠?怨風蝪賜?撠曇酉 -->
+            <div class="print-only-footer">
+              <span>?瑁?皜祇??怨風鈭箏蝪賜?嚗_________________________</span>
+              <span>?怠葦?方?蝪賜?嚗_________________________</span>
+              <span>???嚗?script>document.write(new Date().toLocaleDateString('zh-TW'));</script></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ?惜 2嚗璈風?脩??恣??-->
+    <section id="tab-history" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-header-title">
+            <span class="part-tag part-two">甇瑕鞈?摨?/span>
+            <h2>撌脣摮?憪踹?找?銵憯葫????/h2>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="history-toolbar">
+            <input type="search" id="historySearchInput" class="search-input" placeholder="?? ???憪???甇瑁?..." />
+            <button type="button" class="btn btn-save" id="historyExportCsvBtn" style="flex:0;">
+              ?? ?臬?券蝝? Excel (CSV)
+            </button>
+          </div>
+
+          <div class="history-table-wrapper">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>瑼Ｘ葫?交???</th>
+                  <th>?風??/th>
+                  <th>憪? (撟湧翩)</th>
+                  <th>撟唾犖 BP (HR)</th>
+                  <th>蝡? 1 ??BP (?SBP)</th>
+                  <th>蝡? 3 ??BP (?SBP)</th>
+                  <th>?芸??方?蝯?</th>
+                  <th>??</th>
+                </tr>
+              </thead>
+              <tbody id="historyTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ?惜 3嚗????喋??單????閮剖? -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-header">
+          <div class="panel-header-title">
+            <span class="part-tag">蝟餌絞閮剖?</span>
+            <h2>?啁??嚗隤?隤?蝷箝?蝺抵??單????挾???犖?身摰?/h2>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <div class="settings-grid">
+
+            <!-- 隤閮剖???-->
+            <div class="setting-group-card">
+              <h3>?儭??啁???隤?(Taiwanese Hokkien) 隤閮剖?</h3>
+
+              <div class="form-field">
+                <label for="settingsLangModeSelect">?身隤?剖隤??剝?璅∪?</label>
+                <select id="settingsLangModeSelect">
+                  <option value="patient_tw_staff_zh" selected>?嚗隤?嚗??怨風鈭箏嚗?隤?(?刻?典??瑁蝙??</option>
+                  <option value="all_tw">?典隤芋撘?(撠????撠霅瑚犖?∠??剖?啗?)</option>
+                  <option value="patient_both_staff_zh">?嚗????隤??脤? 嚗??怨風鈭箏嚗?隤?/option>
+                  <option value="all_zh">?典?隤芋撘?(?券雿輻?啁?? zh-TW)</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label for="twVoiceSelect">?豢??啁??隤?脩?嚗???摰?zh-TW 隤嚗?/label>
+                <select id="twVoiceSelect">
+                  <option value="">頛蝟餌絞?啁隤銝?..</option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label>隤?剖隤????拍?澆?隤??啗??單?嚗?<strong id="speechRateVal">0.96x</strong></label>
+                <div class="range-row">
+                  <span>??/span>
+                  <input type="range" id="speechRateInput" min="0.80" max="1.25" step="0.02" value="0.96" />
+                  <span>敹?/span>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label>?? ?啗?隤?函??喲?嚗撘瑟?憓??曉之?剁??擃?400%嚗?<strong id="taiwaneseVolVal">220%</strong></label>
+                <div class="range-row">
+                  <span>?</span>
+                  <input type="range" id="taiwaneseVolInput" min="0.0" max="4.0" step="0.1" value="2.2" />
+                  <span>400% (頞之??</span>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label>?? ??隤?函??喲?嚗? Web Audio GainNode ?單??折嚗?擃?200%嚗?<strong id="speechVolVal">65%</strong></label>
+                <div class="range-row">
+                  <span>?</span>
+                  <input type="range" id="speechVolInput" min="0.0" max="2.0" step="0.05" value="0.65" />
+                  <span>200% (憓?)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- ?楨頛璅身摰 -->
+            <div class="setting-group-card">
+              <h3>? 蝑????楨頛璅身摰?/h3>
+              <div class="form-field">
+                <label for="musicStyleSelect">?豢?蝑????頛璅◢??/label>
+                <select id="musicStyleSelect">
+                  <option value="piano_pad">? ?批遣???潛?澈?憐璅弁摨?(60 BPM ?楨?Ｘ)</option>
+                  <option value="healing_bells">?? ?批遣?芰?交瘜? (瘛勗漲?澆?暸?)</option>
+                  <option value="custom_mp3">?? 雿輻銝銝?閮?MP3 / WAV ?單?瑼?/option>
+                </select>
+              </div>
+
+              <div class="form-field">
+                <label>頛璅像???<strong id="musicVolVal">45%</strong>嚗??單?望????折??輯矽???</label>
+                <div class="range-row">
+                  <span>?</span>
+                  <input type="range" id="musicVolInput" min="0.05" max="1.0" step="0.05" value="0.45" />
+                  <span>100%</span>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label for="customMusicFileInput">銝閮粹??芾?頛璅?獢?(.mp3 / .wav)</label>
+                <input type="file" id="customMusicFileInput" accept="audio/*" />
+              </div>
+            </div>
+
+            <!-- ??畾萄蝘?芾???-->
+            <div class="setting-group-card">
+              <h3>?梧? ??畾萇?敺????貉身摰?/h3>
+              <div class="form-field">
+                <label for="durSupineRest">撟唾犖?蝑??? (蝘? ???典?璅?撱箄降 300 蝘?(5 ??)</label>
+                <input type="number" id="durSupineRest" min="10" max="1200" value="300" />
+              </div>
+              <div class="form-field">
+                <label for="durSitting">?尿?腹蝑??? (蝘? ???身 60 蝘?(1 ??)</label>
+                <input type="number" id="durSitting" min="10" max="600" value="60" />
+              </div>
+              <div class="form-field">
+                <label for="durStand1">蝡?蝚?1 ??皜祇?? (蝘? ???典?璅? 60 蝘?/label>
+                <input type="number" id="durStand1" min="10" max="600" value="60" />
+              </div>
+              <div class="form-field">
+                <label for="durStand3">蝡?蝚?1 ??敺匱蝥?敺蝚?3 ?? (蝘? ???典?璅? 120 蝘?/label>
+                <input type="number" id="durStand3" min="10" max="600" value="120" />
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ?喃?閫閮摰孵 -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <!-- 頛蝟餌絞 JavaScript 璅∠? -->
+  <script src="js/mandarin-audio-data.js"></script>
+  <script src="js/taiwanese-audio-data.js"></script>
+  <script src="js/protocol-steps.js"></script>
+  <script src="js/audio-engine.js"></script>
+  <script src="js/clinical-evaluator.js"></script>
+  <script src="js/storage-export.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
+

@@ -3,10 +3,64 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>姿勢性低血壓 (OH) 測量語音指導與臨床記錄系統</title>
-  <link rel="stylesheet" href="css/styles.css" />
+  <title>姿勢性低血壓測量語音指導與臨床記錄系統</title>
+  <link rel="stylesheet" href="css/ios-theme.css" />
 </head>
 <body>
+
+  <!-- 側邊欄導覽抽屜 (Off-canvas Sidebar Drawer) -->
+  <div class="sidebar-backdrop" id="sidebarBackdrop" aria-hidden="true"></div>
+  <aside class="app-sidebar" id="appSidebar" aria-label="系統功能選單">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <span class="sidebar-brand-icon">🩺</span>
+        <span class="sidebar-brand-title">功能選單</span>
+      </div>
+      <button type="button" class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="關閉選單">✕</button>
+    </div>
+    <div class="sidebar-body">
+      <nav class="sidebar-nav-tabs" aria-label="功能頁籤">
+        <button type="button" class="sidebar-tab-btn active" data-tab="tab-workspace">
+          <span class="sidebar-tab-icon">📋</span>
+          <div class="sidebar-tab-info">
+            <strong>測量指導與即時記錄</strong>
+          </div>
+        </button>
+        <button type="button" class="sidebar-tab-btn" data-tab="tab-history">
+          <span class="sidebar-tab-icon">🗂️</span>
+          <div class="sidebar-tab-info">
+            <strong>歷史紀錄管理</strong>
+          </div>
+          <span class="badge-count" id="historyCountBadge">0</span>
+        </button>
+        <button type="button" class="sidebar-tab-btn" data-tab="tab-settings">
+          <span class="sidebar-tab-icon">⚙️</span>
+          <div class="sidebar-tab-info">
+            <strong>語音、輕音樂與時間設定</strong>
+          </div>
+        </button>
+      </nav>
+      <div class="sidebar-section-divider"></div>
+      <div class="sidebar-section-title">測量資料快捷操作</div>
+      <div class="sidebar-actions-group">
+        <button type="button" class="sidebar-action-btn" id="loadDemoCaseBtn" title="帶入一組典型姿勢性低血壓陽性數據以供測試">
+          <span class="sidebar-action-icon">🧪</span>
+          <div class="sidebar-action-info">
+            <strong>帶入範例數據</strong>
+          </div>
+        </button>
+        <button type="button" class="sidebar-action-btn" id="resetFormBtn" title="清空目前表單重新開始">
+          <span class="sidebar-action-icon">🔄</span>
+          <div class="sidebar-action-info">
+            <strong>清空重填</strong>
+          </div>
+        </button>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <span class="sidebar-footer-text">Orthostatic Hypotension System v2.1</span>
+    </div>
+  </aside>
 
   <!-- 頂部導覽與即時音訊狀態列 -->
   <header class="app-header">
@@ -14,24 +68,17 @@
       <div class="brand-group">
         <div class="brand-icon" aria-hidden="true">🩺</div>
         <div class="brand-title">
-          <h1>姿勢性低血壓 (OH) 測量語音指導與臨床記錄系統</h1>
-          <p>Orthostatic Hypotension Guided Measurement &amp; Clinical Documentation System (台灣國語／台語雙語臨床版)</p>
+          <h1>姿勢性低血壓測量語音指導與臨床記錄系統</h1>
+          <p>Orthostatic Hypotension Guided Measurement &amp; Clinical Documentation System</p>
         </div>
       </div>
 
       <div class="header-controls">
-        <nav class="nav-tabs" aria-label="功能頁籤">
-          <button type="button" class="nav-tab-btn active" data-tab="tab-workspace">
-            <span>📋 測量指導與即時記錄</span>
-          </button>
-          <button type="button" class="nav-tab-btn" data-tab="tab-history">
-            <span>🗂️ 歷史紀錄管理</span>
-            <span class="badge-count" id="historyCountBadge">0</span>
-          </button>
-          <button type="button" class="nav-tab-btn" data-tab="tab-settings">
-            <span>⚙️ 語音、輕音樂與時間設定</span>
-          </button>
-        </nav>
+        <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="開啟功能選單" title="展開系統功能選單">
+          <span class="sidebar-toggle-icon" aria-hidden="true">☰</span>
+          <span class="sidebar-current-label" id="currentNavLabel">📋 測量指導與即時記錄</span>
+          <span class="sidebar-toggle-chevron" aria-hidden="true">▾</span>
+        </button>
       </div>
     </div>
   </header>
@@ -101,10 +148,6 @@
                       <span class="timer-subtext" id="timerSubtext">點擊主按鈕開始語音引導</span>
                     </div>
                   </div>
-
-                  <div class="music-active-pill" id="musicActivePill" style="display: none;">
-                    <span>🎶 舒緩輕音樂播放中（語音說話時自動調降音量）</span>
-                  </div>
                 </div>
 
                 <!-- 緊貼階段與計時器的核心播放控制面板 -->
@@ -118,7 +161,7 @@
                       🔁 重播語音
                     </button>
                     <button type="button" class="btn btn-secondary" id="pauseResumeTimerBtn" disabled>
-                      ⏸ 暫停計時
+                      ⏸ 暫停
                     </button>
                     <button type="button" class="btn btn-secondary" id="nextStepBtn">
                       ⏭ 下一階段
@@ -138,8 +181,8 @@
                   <details class="collapsible-drawer">
                     <summary>🎛️ 語音語言、音量微調與流程選項</summary>
                     <div class="collapsible-drawer-body">
-                      <div style="display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap;">
-                        <select id="headerLangModeSelect" class="stage-lang-select" style="flex: 1;" title="快速切換國語／台語播報搭配模式">
+                      <div class="drawer-lang-row">
+                        <select id="headerLangModeSelect" class="stage-lang-select" title="快速切換國語／台語播報搭配模式">
                           <option value="patient_tw_staff_zh" selected>🗣️ 病患：台語 ／ 醫護：國語 (推薦)</option>
                           <option value="all_tw">🗣️ 全台語模式 (病患＋醫護皆台語)</option>
                           <option value="patient_both_staff_zh">🗣️ 病患：國語＋台語 ／ 醫護：國語</option>
@@ -191,7 +234,7 @@
                     <div class="role-card-header">
                       <span class="role-badge">🛌 病患動作指引</span>
                       <div style="display: flex; gap: 0.35rem; flex-wrap: wrap;">
-                        <button type="button" class="speak-single-btn" id="speakPatientTwBtn" style="background:#ecfdf5; border-color:#10b981; color:#047857;">
+                        <button type="button" class="speak-single-btn" id="speakPatientTwBtn">
                           🔊 台語
                         </button>
                         <button type="button" class="speak-single-btn" id="speakPatientOnlyBtn">
@@ -255,25 +298,9 @@
               <span class="part-tag part-two">第二部分</span>
               <h2>病患測量結果記錄與臨床自動判讀</h2>
             </div>
-            <div style="display:flex; gap:0.45rem;" class="no-print">
-              <button type="button" class="speak-single-btn" id="loadDemoCaseBtn" title="帶入一組典型姿勢性低血壓陽性數據以供測試">
-                🧪 帶入範例數據
-              </button>
-              <button type="button" class="speak-single-btn" id="resetFormBtn" title="清空目前表單重新開始">
-                🔄 清空重填
-              </button>
-            </div>
           </div>
 
           <div class="panel-body">
-            <!-- 手機／平板專用：頂部快速返回「第一部分語音指導」按鈕（一跳過來就能看到，無須往下滑動） -->
-            <div class="part2-top-return-bar no-print" id="part2TopReturnBar">
-              <button type="button" class="btn btn-return-to-guidance" id="topJumpBackToGuidanceBtn">
-                <span class="return-icon">⬅️</span>
-                <span class="return-label">返回「第一部分：語音指導與計時」繼續下一階段</span>
-              </button>
-            </div>
-
             <!-- 病患核心基本資料（僅保留最常填的病歷號與姓名，其餘收納至下方摺疊抽屜） -->
             <div class="patient-info-grid" style="margin-bottom: 0.65rem;">
               <div class="form-field">
@@ -334,13 +361,6 @@
 
             <!-- 各階段血壓、心跳與症狀動態輸入區 -->
             <div class="measurement-stages-list" id="measurementStagesContainer"></div>
-
-            <!-- 手機／平板專用快捷鍵：輸入完血壓後一鍵返回第一部分語音指導 -->
-            <div style="margin-bottom: 1rem;" class="no-print">
-              <button type="button" class="btn btn-jump-record" id="jumpBackToGuidanceBtn" style="width: 100%; background: #e6f2ff; color: #0b4f8c; border-color: #93c5fd;">
-                ⬅️ 返回「第一部分：語音指導與計時」繼續下一階段
-              </button>
-            </div>
 
             <!-- 即時臨床自動判讀橫幅 -->
             <div class="assessment-banner status-pending" id="clinicalAssessmentBanner">
@@ -426,7 +446,7 @@
         <div class="panel-body">
           <div class="history-toolbar">
             <input type="search" id="historySearchInput" class="search-input" placeholder="🔍 搜尋病患姓名或病歷號..." />
-            <button type="button" class="btn btn-save" id="historyExportCsvBtn" style="flex:0;">
+            <button type="button" class="btn btn-save" id="historyExportCsvBtn">
               📊 匯出全部紀錄為 Excel (CSV)
             </button>
           </div>
@@ -562,6 +582,16 @@
               </div>
             </div>
 
+          </div>
+
+          <!-- 本機個人化設定儲存與還原控制列 -->
+          <div class="settings-actions-bar">
+            <button type="button" class="btn btn-restore-settings" id="restoreDefaultSettingsBtn">
+              🔄 還原為系統預設值
+            </button>
+            <button type="button" class="btn btn-save-settings" id="saveUserSettingsBtn">
+              💾 儲存目前個人化設定至本機
+            </button>
           </div>
         </div>
       </div>

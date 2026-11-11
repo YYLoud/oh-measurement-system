@@ -11,6 +11,55 @@
  * 4. 語音說話時背景輕音樂自動淡出閃避 (Auto-ducking)
  */
 
+// 全系統 43 支預合成台語與台灣國語語音檔標準秒數字典（依實體 MP3 幀精準解碼秒數，供進度條即時精密運算）
+const AUDIO_DURATIONS = {
+  'audio/taiwanese/complete_patient.mp3': 8.42,
+  'audio/taiwanese/complete_staff.mp3': 9.97,
+  'audio/taiwanese/emergency_abort.mp3': 13.46,
+  'audio/taiwanese/pre_alert.mp3': 8.21,
+  'audio/taiwanese/prep_patient.mp3': 11.56,
+  'audio/taiwanese/prep_staff.mp3': 10.33,
+  'audio/taiwanese/sitting_transition_patient.mp3': 13.25,
+  'audio/taiwanese/sitting_transition_staff.mp3': 9.72,
+  'audio/taiwanese/stand_1min_patient.mp3': 17.60,
+  'audio/taiwanese/stand_1min_staff.mp3': 10.66,
+  'audio/taiwanese/stand_3min_patient.mp3': 14.33,
+  'audio/taiwanese/stand_3min_staff.mp3': 9.65,
+  'audio/taiwanese/supine_measure_patient.mp3': 8.75,
+  'audio/taiwanese/supine_measure_staff.mp3': 10.48,
+  'audio/taiwanese/supine_rest_patient.mp3': 11.92,
+  'audio/taiwanese/supine_rest_staff.mp3': 10.80,
+  'audio/taiwanese/test_voice.mp3': 12.17,
+  'audio/taiwanese/timer_done.mp3': 11.70,
+
+  'audio/mandarin/complete_patient.mp3': 13.32,
+  'audio/mandarin/complete_staff.mp3': 18.67,
+  'audio/mandarin/emergency_abort.mp3': 17.98,
+  'audio/mandarin/prep_patient.mp3': 18.84,
+  'audio/mandarin/prep_staff.mp3': 14.95,
+  'audio/mandarin/sitting_transition_patient.mp3': 15.38,
+  'audio/mandarin/sitting_transition_pre_alert.mp3': 14.30,
+  'audio/mandarin/sitting_transition_staff.mp3': 11.52,
+  'audio/mandarin/sitting_transition_timer_done.mp3': 10.63,
+  'audio/mandarin/stand_1min_patient.mp3': 19.99,
+  'audio/mandarin/stand_1min_pre_alert.mp3': 14.30,
+  'audio/mandarin/stand_1min_staff.mp3': 16.30,
+  'audio/mandarin/stand_1min_timer_done.mp3': 17.14,
+  'audio/mandarin/stand_3min_patient.mp3': 19.70,
+  'audio/mandarin/stand_3min_pre_alert.mp3': 12.74,
+  'audio/mandarin/stand_3min_staff.mp3': 16.63,
+  'audio/mandarin/stand_3min_timer_done.mp3': 13.56,
+  'audio/mandarin/supine_measure_patient.mp3': 15.74,
+  'audio/mandarin/supine_measure_staff.mp3': 15.65,
+  'audio/mandarin/supine_rest_patient.mp3': 16.92,
+  'audio/mandarin/supine_rest_pre_alert.mp3': 12.36,
+  'audio/mandarin/supine_rest_staff.mp3': 12.53,
+  'audio/mandarin/supine_rest_timer_done.mp3': 12.05,
+  'audio/mandarin/test_voice_patient.mp3': 8.93,
+  'audio/mandarin/test_voice_staff.mp3': 10.80
+};
+Object.freeze(AUDIO_DURATIONS);
+
 class OHAudioEngine {
   constructor() {
     this.audioCtx = null;
@@ -52,6 +101,21 @@ class OHAudioEngine {
     this.onSpeakingStatusChange = null;
     this.onMusicStatusChange = null;
     this.onVoicesLoaded = null;
+    this.onVoiceProgress = null; // 語音播放進度即時回呼 ({ active, percent, elapsedSec, totalSec, roleLabel, stepId, completed })
+
+    // 語音播放進度追蹤內部狀態（採用全域單調平滑時鐘，徹底消除跳躍與異常）
+    this._currentStepId = null;
+    this._voiceQueue = [];
+    this._voiceQueueIndex = -1;
+    this._progressTicker = null;
+    this._totalVoiceDuration = 0;
+    this._timelineItems = [];
+    this._currentRoleLabel = '';
+    this._masterStartTime = 0;
+    this._masterPausedOffset = 0;
+    this._isVoicePaused = false;
+    this._chimeTimeoutId = null;
+    this._nextItemTimeoutId = null;
 
     this._initSpeechVoices();
   }
@@ -262,6 +326,59 @@ class OHAudioEngine {
   }
 
   /**
+   * 根據目前語音模式與語速，動態計算特定步驟的語音預估總時長（秒）
+   */
+  getEstimatedDurationForStep(step) {
+    if (!step) return 0;
+    const mode = this.languageMode || 'patient_tw_staff_zh';
+    const rate = this.speechRate || 0.96;
+    const intervalGap = 0.42;
+    const urls = [];
+
+    // 1. 病患語音
+    if (mode === 'patient_tw_staff_zh' || mode === 'all_tw') {
+      if (step.taiwaneseAudio && step.taiwaneseAudio.patient) {
+        urls.push(step.taiwaneseAudio.patient);
+      }
+    } else if (mode === 'patient_both_staff_zh') {
+      if (step.mandarinAudio && step.mandarinAudio.patient) {
+        urls.push(step.mandarinAudio.patient);
+      }
+      if (step.taiwaneseAudio && step.taiwaneseAudio.patient) {
+        urls.push(step.taiwaneseAudio.patient);
+      }
+    } else { // all_zh
+      if (step.mandarinAudio && step.mandarinAudio.patient) {
+        urls.push(step.mandarinAudio.patient);
+      }
+    }
+
+    // 2. 醫護語音
+    if (mode === 'all_tw') {
+      if (step.taiwaneseAudio && step.taiwaneseAudio.staff) {
+        urls.push(step.taiwaneseAudio.staff);
+      }
+    } else {
+      if (step.mandarinAudio && step.mandarinAudio.staff) {
+        urls.push(step.mandarinAudio.staff);
+      }
+    }
+
+    if (urls.length === 0) return 0;
+
+    let total = 0;
+    urls.forEach((url, idx) => {
+      const baseSec = AUDIO_DURATIONS[url] || 12.0;
+      total += baseSec / rate;
+      if (idx < urls.length - 1) {
+        total += intervalGap;
+      }
+    });
+
+    return Math.max(1, Math.round(total));
+  }
+
+  /**
    * 播報雙角色語音提示（國語與台語皆支援透過 Web Audio API 專屬 GainNode 精準獨立控音）
    */
   speakPrompt({
@@ -285,13 +402,17 @@ class OHAudioEngine {
       return;
     }
 
+    const token = this._voicePlayToken;
     this._setSpeakingState(true);
     this._setMusicDucking(true);
-    this.playChime(chimeType);
+    if (chimeType && chimeType !== 'none') {
+      this.playChime(chimeType);
+    }
 
     if (stepId && this.customStepVoiceUrls[stepId] && !singleText && !forceLang) {
       setTimeout(() => {
-        this._playQueue([{ type: 'audio', lang: 'tw', url: this.customStepVoiceUrls[stepId] }], 0);
+        if (!this.isSpeaking || this._voicePlayToken !== token) return;
+        this._playQueue([{ type: 'audio', lang: 'tw', url: this.customStepVoiceUrls[stepId] }], 0, token);
       }, 480);
       return;
     }
@@ -299,19 +420,19 @@ class OHAudioEngine {
     const queue = [];
     const mode = this.languageMode;
 
-    const pushZhItem = (zhUrl, text, pitch = 1.0, rate = this.speechRate) => {
+    const pushZhItem = (zhUrl, text, pitch = 1.0, rate = this.speechRate, role = 'staff', roleLabel = '醫護說明 (國語)') => {
       if (zhUrl) {
-        queue.push({ type: 'audio', lang: 'zh', url: zhUrl, fallbackText: text });
+        queue.push({ type: 'audio', lang: 'zh', url: zhUrl, fallbackText: text, role, roleLabel });
       } else if (text) {
-        queue.push({ type: 'tts', lang: 'zh', text, pitch, rate });
+        queue.push({ type: 'tts', lang: 'zh', text, pitch, rate, role, roleLabel });
       }
     };
 
-    const pushTwItem = (twUrl, fallbackText) => {
+    const pushTwItem = (twUrl, fallbackText, role = 'patient', roleLabel = '病患指引 (台語)') => {
       if (twUrl) {
-        queue.push({ type: 'audio', lang: 'tw', url: twUrl, fallbackText });
+        queue.push({ type: 'audio', lang: 'tw', url: twUrl, fallbackText, role, roleLabel });
       } else if (fallbackText) {
-        queue.push({ type: 'tts', lang: 'zh', text: fallbackText, pitch: 1.0, rate: this.speechRate });
+        queue.push({ type: 'tts', lang: 'zh', text: fallbackText, pitch: 1.0, rate: this.speechRate, role, roleLabel });
       }
     };
 
@@ -321,86 +442,193 @@ class OHAudioEngine {
         (forceLang !== 'zh' && mode === 'all_tw');
 
       if (useTw && singleTwAudioUrl) {
-        pushTwItem(singleTwAudioUrl, singleText);
+        pushTwItem(singleTwAudioUrl, singleText, 'single', '語音提示 (台語)');
       } else {
-        pushZhItem(singleZhAudioUrl, singleText, 1.0, this.speechRate);
+        pushZhItem(singleZhAudioUrl, singleText, 1.0, this.speechRate, 'single', '語音提示 (國語)');
       }
     } else {
       // 1. 對病患的語音提示
       if (roleFilter === 'both' || roleFilter === 'patient') {
         const patientSpokenZh = patientText ? `病患請注意：${patientText}` : '';
         if (forceLang === 'tw') {
-          pushTwItem(patientTwAudioUrl, patientSpokenZh);
+          pushTwItem(patientTwAudioUrl, patientSpokenZh, 'patient', '病患指引 (台語)');
         } else if (forceLang === 'zh') {
-          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04));
+          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04), 'patient', '病患指引 (國語)');
         } else if (mode === 'patient_tw_staff_zh' || mode === 'all_tw') {
           if (patientTwAudioUrl) {
-            pushTwItem(patientTwAudioUrl, patientSpokenZh);
+            pushTwItem(patientTwAudioUrl, patientSpokenZh, 'patient', '病患指引 (台語)');
           } else {
-            pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, this.speechRate);
+            pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, this.speechRate, 'patient', '病患指引 (國語)');
           }
         } else if (mode === 'patient_both_staff_zh') {
-          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04));
+          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04), 'patient', '病患指引 (國語)');
           if (patientTwAudioUrl) {
-            pushTwItem(patientTwAudioUrl, '');
+            pushTwItem(patientTwAudioUrl, '', 'patient', '病患指引 (台語)');
           }
         } else {
-          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04));
+          pushZhItem(patientZhAudioUrl, patientSpokenZh, 1.04, Math.max(0.82, this.speechRate - 0.04), 'patient', '病患指引 (國語)');
         }
       }
 
       // 2. 對醫護人員的語音提示
       if (roleFilter === 'both' || roleFilter === 'staff') {
         if (forceLang === 'tw') {
-          pushTwItem(staffTwAudioUrl, staffText);
+          pushTwItem(staffTwAudioUrl, staffText, 'staff', '醫護說明 (台語)');
         } else if (forceLang === 'zh') {
-          pushZhItem(staffZhAudioUrl, staffText, 0.98, this.speechRate);
+          pushZhItem(staffZhAudioUrl, staffText, 0.98, this.speechRate, 'staff', '醫護說明 (國語)');
         } else if (mode === 'all_tw' && staffTwAudioUrl) {
-          pushTwItem(staffTwAudioUrl, staffText);
+          pushTwItem(staffTwAudioUrl, staffText, 'staff', '醫護說明 (台語)');
         } else {
-          pushZhItem(staffZhAudioUrl, staffText, 0.98, this.speechRate);
+          pushZhItem(staffZhAudioUrl, staffText, 0.98, this.speechRate, 'staff', '醫護說明 (國語)');
         }
       }
     }
 
     if (queue.length === 0) {
+      this._stopVoiceProgressTicker();
+      this._emitVoiceProgress({
+        active: false,
+        percent: 0,
+        elapsedSec: 0,
+        totalSec: 0,
+        roleLabel: '',
+        stepId,
+        completed: false
+      });
       this._setSpeakingState(false);
       this._setMusicDucking(false);
       return;
     }
 
-    setTimeout(() => {
-      this._playQueue(queue, 0);
-    }, 520);
+    // 計算整個佇列的預估總時長與各項目的精準時間區間 (包含項目間隔 0.42 秒)
+    const intervalGap = 0.42;
+    let cumulativeTime = 0;
+    const timelineItems = [];
+
+    queue.forEach((it, idx) => {
+      // 優先使用精確標準秒數字典，音檔項目切勿因未即時解碼而回退至長文字列 TTS 預估
+      let itemSec = 0;
+      if (it.url && AUDIO_DURATIONS[it.url]) {
+        itemSec = AUDIO_DURATIONS[it.url];
+      } else if (it.type === 'audio') {
+        itemSec = it.role === 'patient' ? 12.0 : 15.0;
+      } else if (it.text) {
+        itemSec = it.text.length / 3.6;
+      } else {
+        itemSec = 5.0;
+      }
+      it.duration = itemSec / (this.speechRate || 1.0);
+      const startTime = cumulativeTime;
+      const endTime = startTime + it.duration;
+      timelineItems.push({
+        index: idx,
+        roleLabel: it.roleLabel,
+        startTime,
+        endTime,
+        duration: it.duration
+      });
+      cumulativeTime = endTime + (idx < queue.length - 1 ? intervalGap : 0);
+    });
+
+    this._currentStepId = stepId;
+    this._voiceQueue = queue;
+    this._voiceQueueIndex = 0;
+    this._totalVoiceDuration = Math.max(0.8, cumulativeTime);
+    this._timelineItems = timelineItems;
+    this._currentRoleLabel = queue[0]?.roleLabel || '語音提示準備中...';
+    this._masterStartTime = performance.now();
+    this._masterPausedOffset = 0;
+    this._isVoicePaused = false;
+
+    this._emitVoiceProgress({
+      active: true,
+      isPaused: false,
+      percent: 0,
+      elapsedSec: 0,
+      totalSec: this._totalVoiceDuration,
+      roleLabel: this._currentRoleLabel,
+      stepId,
+      completed: false
+    });
+
+    clearTimeout(this._chimeTimeoutId);
+    const delayMs = chimeType === 'none' ? 0 : 520;
+    if (delayMs === 0) {
+      if (!this.isSpeaking || this._voicePlayToken !== token) return;
+      this._masterStartTime = performance.now();
+      this._masterPausedOffset = 0;
+      this._startVoiceProgressTicker();
+      this._playQueue(queue, 0, token);
+    } else {
+      this._chimeTimeoutId = setTimeout(() => {
+        if (!this.isSpeaking || this._voicePlayToken !== token) return;
+        this._masterStartTime = performance.now();
+        this._masterPausedOffset = 0;
+        this._startVoiceProgressTicker();
+        this._playQueue(queue, 0, token);
+      }, delayMs);
+    }
   }
 
   /**
    * 依序執行混合佇列（台語與國語 MP3 皆透過 Web Audio API 專屬 GainNode 即時控音）
    */
-  _playQueue(queue, index) {
-    if (!this.isSpeaking || index >= queue.length) {
-      this._setSpeakingState(false);
-      this._setMusicDucking(false);
+  _playQueue(queue, index, token = null) {
+    if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token) || index >= queue.length) {
+      if (token !== null && this._voicePlayToken === token && this.isSpeaking) {
+        this._stopVoiceProgressTicker();
+        this._emitVoiceProgress({
+          active: false,
+          isPaused: false,
+          percent: 100,
+          elapsedSec: this._totalVoiceDuration,
+          totalSec: this._totalVoiceDuration,
+          roleLabel: '播報完畢',
+          stepId: this._currentStepId,
+          completed: true
+        });
+        this._setSpeakingState(false);
+        this._setMusicDucking(false);
+      }
       return;
     }
 
     const item = queue[index];
+    this._voiceQueueIndex = index;
+    this._activeVoiceItem = item;
+    if (item.roleLabel) {
+      this._currentRoleLabel = item.roleLabel;
+    }
+
     const proceedNext = () => {
-      if (!this.isSpeaking) return;
+      if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
       if (index + 1 < queue.length) {
-        setTimeout(() => {
-          this._playQueue(queue, index + 1);
+        clearTimeout(this._nextItemTimeoutId);
+        this._nextItemTimeoutId = setTimeout(() => {
+          if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
+          this._playQueue(queue, index + 1, token);
         }, 420);
       } else {
+        this._stopVoiceProgressTicker();
+        this._emitVoiceProgress({
+          active: false,
+          isPaused: false,
+          percent: 100,
+          elapsedSec: this._totalVoiceDuration,
+          totalSec: this._totalVoiceDuration,
+          roleLabel: '播報完畢',
+          stepId: this._currentStepId,
+          completed: true
+        });
         this._setSpeakingState(false);
         this._setMusicDucking(false);
       }
     };
 
     if (item.type === 'audio' && item.url) {
-      this._playBoostedVoiceAudio(item.url, item.lang || 'tw', item.fallbackText, proceedNext);
+      this._playBoostedVoiceAudio(item.url, item.lang || 'tw', item.fallbackText, proceedNext, token);
     } else if (item.type === 'tts' && item.text) {
-      this._speakSingleUtterance(item.text, item.pitch, item.rate, proceedNext);
+      this._speakSingleUtterance(item.text, item.pitch, item.rate, proceedNext, token);
     } else {
       proceedNext();
     }
@@ -409,17 +637,17 @@ class OHAudioEngine {
   /**
    * 使用 Web Audio API 將台語或國語 MP3 解碼並透過各自獨立的 GainNode 控制音量（突破瀏覽器 TTS 限制且支援播報中即時調音量）
    */
-  _playBoostedVoiceAudio(url, lang = 'tw', fallbackText = '', onComplete = null) {
+  _playBoostedVoiceAudio(url, lang = 'tw', fallbackText = '', onComplete = null, token = null) {
     this.ensureAudioContext();
     const isMandarin = lang === 'zh';
     const targetGainNode = isMandarin ? this.mandarinGainNode : this.taiwaneseGainNode;
 
     const playDecodedBuffer = (arrayBuffer) => {
-      if (!this.isSpeaking) return;
+      if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
       this.audioCtx.decodeAudioData(
         arrayBuffer,
         (audioBuffer) => {
-          if (!this.isSpeaking) return;
+          if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
           const source = this.audioCtx.createBufferSource();
           source.buffer = audioBuffer;
           source.playbackRate.value = Math.max(0.8, Math.min(1.25, this.speechRate));
@@ -449,15 +677,26 @@ class OHAudioEngine {
           source.connect(perClipGain);
           perClipGain.connect(targetGainNode);
 
+          if (this._activeVoiceItem && this._activeVoiceItem.url === url && audioBuffer && audioBuffer.duration > 0) {
+            this._activeVoiceItem.duration = audioBuffer.duration / source.playbackRate.value;
+          }
+          this._currentItemStartTime = (this.audioCtx && this.audioCtx.state === 'running')
+            ? this.audioCtx.currentTime
+            : performance.now() / 1000;
+
           this._currentBufferSource = source;
           source.onended = () => {
-            this._currentBufferSource = null;
+            if (this._currentBufferSource === source) {
+              this._currentBufferSource = null;
+            }
+            if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
             if (onComplete) onComplete();
           };
           source.start(0);
         },
         () => {
-          this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete);
+          if (token !== null && this._voicePlayToken !== token) return;
+          this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete, token);
         }
       );
     };
@@ -484,19 +723,28 @@ class OHAudioEngine {
 
     // 2. 若為外部或自訂上傳音檔，使用 XMLHttpRequest 讀取 ArrayBuffer
     const xhr = new XMLHttpRequest();
+    this._currentVoiceXhr = xhr;
     xhr.open('GET', url, true);
     xhr.responseType = 'arraybuffer';
 
     xhr.onload = () => {
+      if (this._currentVoiceXhr === xhr) {
+        this._currentVoiceXhr = null;
+      }
+      if (token !== null && this._voicePlayToken !== token) return;
       if ((xhr.status === 200 || xhr.status === 0) && xhr.response) {
         playDecodedBuffer(xhr.response);
       } else {
-        this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete);
+        this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete, token);
       }
     };
 
     xhr.onerror = () => {
-      this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete);
+      if (this._currentVoiceXhr === xhr) {
+        this._currentVoiceXhr = null;
+      }
+      if (token !== null && this._voicePlayToken !== token) return;
+      this._fallbackHtmlAudioPlay(url, lang, fallbackText, onComplete, token);
     };
 
     xhr.send();
@@ -505,8 +753,8 @@ class OHAudioEngine {
   /**
    * 當瀏覽器因 file:// 安全性限制阻擋 XHR 時，使用 HTML5 Audio + Web Audio MediaElementSource 控制音量
    */
-  _fallbackHtmlAudioPlay(url, lang = 'tw', fallbackText = '', onComplete = null) {
-    if (!this.isSpeaking) return;
+  _fallbackHtmlAudioPlay(url, lang = 'tw', fallbackText = '', onComplete = null, token = null) {
+    if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
     const isMandarin = lang === 'zh';
     const audio = new Audio(url);
     this.currentVoiceAudio = audio;
@@ -531,36 +779,59 @@ class OHAudioEngine {
     }
 
     audio.onended = () => {
-      this.currentVoiceAudio = null;
+      if (this.currentVoiceAudio === audio) {
+        this.currentVoiceAudio = null;
+      }
+      if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
       if (onComplete) onComplete();
     };
 
     audio.onerror = () => {
-      this.currentVoiceAudio = null;
+      if (this.currentVoiceAudio === audio) {
+        this.currentVoiceAudio = null;
+      }
+      if (token !== null && this._voicePlayToken !== token) return;
       if (fallbackText) {
-        this._speakSingleUtterance(fallbackText, 1.0, this.speechRate, onComplete);
+        this._speakSingleUtterance(fallbackText, 1.0, this.speechRate, onComplete, token);
       } else if (onComplete) {
         onComplete();
       }
     };
 
+    audio.onplay = () => {
+      if (token !== null && this._voicePlayToken !== token) return;
+      this._currentItemStartTime = performance.now() / 1000;
+    };
+    audio.onloadedmetadata = () => {
+      if (token !== null && this._voicePlayToken !== token) return;
+      if (audio.duration && !Number.isNaN(audio.duration) && audio.duration > 0) {
+        if (this._activeVoiceItem && this._activeVoiceItem.url === url) {
+          this._activeVoiceItem.duration = audio.duration / audio.playbackRate;
+        }
+      }
+    };
+
     audio.play().catch(() => {
-      this.currentVoiceAudio = null;
+      if (this.currentVoiceAudio === audio) {
+        this.currentVoiceAudio = null;
+      }
+      if (token !== null && this._voicePlayToken !== token) return;
       if (fallbackText) {
-        this._speakSingleUtterance(fallbackText, 1.0, this.speechRate, onComplete);
+        this._speakSingleUtterance(fallbackText, 1.0, this.speechRate, onComplete, token);
       } else if (onComplete) {
         onComplete();
       }
     });
   }
 
-  _speakSingleUtterance(text, pitch = 1.0, rate = 0.96, onComplete) {
+  _speakSingleUtterance(text, pitch = 1.0, rate = 0.96, onComplete, token = null) {
     if (!('speechSynthesis' in window)) {
       if (onComplete) onComplete();
       return;
     }
 
     const utterance = new SpeechSynthesisUtterance(text);
+    this._currentUtterance = utterance;
     utterance.lang = 'zh-TW';
     const voice = this.getSelectedVoice();
     if (voice) {
@@ -571,10 +842,22 @@ class OHAudioEngine {
     utterance.rate = rate || this.speechRate;
     utterance.pitch = pitch || 1.0;
 
+    utterance.onstart = () => {
+      if (token !== null && this._voicePlayToken !== token) return;
+      this._currentItemStartTime = performance.now() / 1000;
+    };
     utterance.onend = () => {
+      if (this._currentUtterance === utterance) {
+        this._currentUtterance = null;
+      }
+      if (token !== null && this._voicePlayToken !== token) return;
       if (onComplete) onComplete();
     };
     utterance.onerror = () => {
+      if (this._currentUtterance === utterance) {
+        this._currentUtterance = null;
+      }
+      if (token !== null && this._voicePlayToken !== token) return;
       if (onComplete) onComplete();
     };
 
@@ -582,31 +865,177 @@ class OHAudioEngine {
   }
 
   /**
+   * 暫停當前語音播報
+   */
+  pauseVoice() {
+    if (!this.isSpeaking || this._isVoicePaused) return;
+    this._isVoicePaused = true;
+    this._masterPausedOffset += (performance.now() - this._masterStartTime) / 1000;
+    this._stopVoiceProgressTicker();
+
+    if (this.audioCtx && this.audioCtx.state === 'running') {
+      this.audioCtx.suspend();
+    }
+    if (this.currentVoiceAudio && !this.currentVoiceAudio.paused) {
+      this.currentVoiceAudio.pause();
+    }
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+    }
+
+    const clamped = Math.max(0, Math.min(this._totalVoiceDuration, this._masterPausedOffset));
+    const percent = Math.min(99.5, Math.max(0, (clamped / this._totalVoiceDuration) * 100));
+
+    this._emitVoiceProgress({
+      active: true,
+      isPaused: true,
+      percent,
+      elapsedSec: clamped,
+      totalSec: this._totalVoiceDuration,
+      roleLabel: this._currentRoleLabel ? `${this._currentRoleLabel} (已暫停)` : '語音已暫停',
+      stepId: this._currentStepId,
+      completed: false
+    });
+  }
+
+  /**
+   * 繼續當前語音播報
+   */
+  resumeVoice() {
+    if (!this.isSpeaking || !this._isVoicePaused) return;
+    this._isVoicePaused = false;
+    this._masterStartTime = performance.now();
+
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
+    }
+    if (this.currentVoiceAudio && this.currentVoiceAudio.paused) {
+      this.currentVoiceAudio.play().catch(() => {});
+    }
+    if ('speechSynthesis' in window && window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+
+    this._startVoiceProgressTicker();
+  }
+
+  /**
    * 立即停止目前正在播報的國語或台語語音
    */
   stopSpeech() {
+    this._voicePlayToken = (this._voicePlayToken || 0) + 1;
+    clearTimeout(this._chimeTimeoutId);
+    clearTimeout(this._nextItemTimeoutId);
+    this._stopVoiceProgressTicker();
+    this._isVoicePaused = false;
+    this._masterPausedOffset = 0;
+
+    if (this._currentVoiceXhr) {
+      try {
+        this._currentVoiceXhr.abort();
+      } catch (e) {}
+      this._currentVoiceXhr = null;
+    }
+
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume();
+    }
+    if (this._currentUtterance) {
+      this._currentUtterance.onend = null;
+      this._currentUtterance.onerror = null;
+      this._currentUtterance.onstart = null;
+      this._currentUtterance = null;
+    }
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
     }
     if (this._currentBufferSource) {
       try {
+        this._currentBufferSource.onended = null;
         this._currentBufferSource.stop();
       } catch (e) {}
       this._currentBufferSource = null;
     }
     if (this.currentVoiceAudio) {
+      this.currentVoiceAudio.onended = null;
+      this.currentVoiceAudio.onerror = null;
+      this.currentVoiceAudio.onplay = null;
       this.currentVoiceAudio.pause();
       this.currentVoiceAudio.currentTime = 0;
       this.currentVoiceAudio = null;
     }
     this._setSpeakingState(false);
     this._setMusicDucking(false);
+
+    this._emitVoiceProgress({
+      active: false,
+      isPaused: false,
+      percent: 0,
+      elapsedSec: 0,
+      totalSec: 0,
+      roleLabel: '',
+      stepId: this._currentStepId,
+      completed: false
+    });
   }
 
   _setSpeakingState(speaking) {
     this.isSpeaking = speaking;
     if (typeof this.onSpeakingStatusChange === 'function') {
       this.onSpeakingStatusChange(speaking);
+    }
+  }
+
+  _startVoiceProgressTicker() {
+    this._stopVoiceProgressTicker();
+    this._progressTicker = setInterval(() => {
+      this._tickVoiceProgress();
+    }, 40);
+  }
+
+  _stopVoiceProgressTicker() {
+    if (this._progressTicker) {
+      clearInterval(this._progressTicker);
+      this._progressTicker = null;
+    }
+  }
+
+  _tickVoiceProgress() {
+    if (!this.isSpeaking || this._isVoicePaused) return;
+
+    const now = performance.now();
+    const elapsed = this._masterPausedOffset + (now - this._masterStartTime) / 1000;
+    const clampedElapsed = Math.max(0, Math.min(this._totalVoiceDuration, elapsed));
+    const percent = Math.min(99.5, Math.max(0, (clampedElapsed / this._totalVoiceDuration) * 100));
+
+    let currentLabel = this._currentRoleLabel || '語音提示';
+    for (const it of this._timelineItems) {
+      if (clampedElapsed >= it.startTime && clampedElapsed <= it.endTime) {
+        currentLabel = it.roleLabel;
+        break;
+      }
+    }
+    this._currentRoleLabel = currentLabel;
+
+    this._emitVoiceProgress({
+      active: true,
+      isPaused: false,
+      percent,
+      elapsedSec: clampedElapsed,
+      totalSec: this._totalVoiceDuration,
+      roleLabel: currentLabel,
+      stepId: this._currentStepId,
+      completed: false
+    });
+  }
+
+  _emitVoiceProgress(info) {
+    if (typeof this.onVoiceProgress === 'function') {
+      try {
+        this.onVoiceProgress(info);
+      } catch (err) {
+        console.warn('onVoiceProgress 回呼執行錯誤:', err);
+      }
     }
   }
 
