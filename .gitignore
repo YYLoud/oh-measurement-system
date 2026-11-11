@@ -11,3 +11,7 @@ desktop.ini
 __pycache__/
 *.py[cod]
 *.tmp
+
+# Firebase
+.firebase/
+firebase-debug.log*

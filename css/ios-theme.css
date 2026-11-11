@@ -2238,13 +2238,8 @@ button.btn-primary-large:disabled {
 /* ==========================================================================
    響應式螢幕調適 (Responsive Media Queries)
    ========================================================================== */
-/* 手機／單欄模式下，徹底隱藏第一部分與第二部分的標題列，釋放珍貴螢幕空間 */
-.workspace-grid.mobile-view-part1 .guidance-column .panel-header,
-.workspace-grid.mobile-view-part2 .record-column .panel-header {
-  display: none !important;
-}
-
 @media (max-width: 1120px) {
+  /* 手機與直立平板等單欄切換小版面：隱藏第一部分與第二部分標題列，釋放垂直操作空間 */
   .guidance-column .panel-header,
   .record-column .panel-header {
     display: none !important;
