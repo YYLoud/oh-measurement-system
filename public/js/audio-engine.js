@@ -116,6 +116,7 @@ class OHAudioEngine {
     this._isVoicePaused = false;
     this._chimeTimeoutId = null;
     this._nextItemTimeoutId = null;
+    this._audioBufferCache = new Map();
 
     this._initSpeechVoices();
   }
@@ -642,57 +643,71 @@ class OHAudioEngine {
     const isMandarin = lang === 'zh';
     const targetGainNode = isMandarin ? this.mandarinGainNode : this.taiwaneseGainNode;
 
+    const playAudioBuffer = (audioBuffer) => {
+      if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
+      const source = this.audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.playbackRate.value = Math.max(0.8, Math.min(1.25, this.speechRate));
+
+      // 計算此音檔的峰值並自動正規化 (Peak Normalization)
+      const channelData = audioBuffer.getChannelData(0);
+      let maxPeak = 0.01;
+      for (let i = 0; i < channelData.length; i += 8) {
+        const abs = Math.abs(channelData[i]);
+        if (abs > maxPeak) maxPeak = abs;
+      }
+
+      // 台語給予 1.35 倍基礎響度補償，國語給予標準 0.95 峰值正規化，再連結至各自的 GainNode
+      const normGain = isMandarin
+        ? Math.min(2.0, 0.92 / maxPeak)
+        : Math.min(4.0, (0.98 / maxPeak) * 1.35);
+
+      const perClipGain = this.audioCtx.createGain();
+      perClipGain.gain.setValueAtTime(normGain, this.audioCtx.currentTime);
+
+      if (isMandarin) {
+        this.mandarinGainNode.gain.setValueAtTime(this.mandarinVolume, this.audioCtx.currentTime);
+      } else {
+        this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume, this.audioCtx.currentTime);
+      }
+
+      source.connect(perClipGain);
+      perClipGain.connect(targetGainNode);
+
+      if (this._activeVoiceItem && this._activeVoiceItem.url === url && audioBuffer && audioBuffer.duration > 0) {
+        this._activeVoiceItem.duration = audioBuffer.duration / source.playbackRate.value;
+      }
+      this._currentItemStartTime = (this.audioCtx && this.audioCtx.state === 'running')
+        ? this.audioCtx.currentTime
+        : performance.now() / 1000;
+
+      this._currentBufferSource = source;
+      source.onended = () => {
+        if (this._currentBufferSource === source) {
+          this._currentBufferSource = null;
+        }
+        if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
+        if (onComplete) onComplete();
+      };
+      source.start(0);
+    };
+
+    // 0. 若此音檔已經在記憶體中解碼快取過，直接零延遲播放
+    if (this._audioBufferCache && this._audioBufferCache.has(url)) {
+      playAudioBuffer(this._audioBufferCache.get(url));
+      return;
+    }
+
     const playDecodedBuffer = (arrayBuffer) => {
       if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
       this.audioCtx.decodeAudioData(
         arrayBuffer,
         (audioBuffer) => {
           if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
-          const source = this.audioCtx.createBufferSource();
-          source.buffer = audioBuffer;
-          source.playbackRate.value = Math.max(0.8, Math.min(1.25, this.speechRate));
-
-          // 計算此音檔的峰值並自動正規化 (Peak Normalization)
-          const channelData = audioBuffer.getChannelData(0);
-          let maxPeak = 0.01;
-          for (let i = 0; i < channelData.length; i += 8) {
-            const abs = Math.abs(channelData[i]);
-            if (abs > maxPeak) maxPeak = abs;
+          if (this._audioBufferCache) {
+            this._audioBufferCache.set(url, audioBuffer);
           }
-
-          // 台語給予 1.35 倍基礎響度補償，國語給予標準 0.95 峰值正規化，再連結至各自的 GainNode
-          const normGain = isMandarin
-            ? Math.min(2.0, 0.92 / maxPeak)
-            : Math.min(4.0, (0.98 / maxPeak) * 1.35);
-
-          const perClipGain = this.audioCtx.createGain();
-          perClipGain.gain.setValueAtTime(normGain, this.audioCtx.currentTime);
-
-          if (isMandarin) {
-            this.mandarinGainNode.gain.setValueAtTime(this.mandarinVolume, this.audioCtx.currentTime);
-          } else {
-            this.taiwaneseGainNode.gain.setValueAtTime(this.taiwaneseVolume, this.audioCtx.currentTime);
-          }
-
-          source.connect(perClipGain);
-          perClipGain.connect(targetGainNode);
-
-          if (this._activeVoiceItem && this._activeVoiceItem.url === url && audioBuffer && audioBuffer.duration > 0) {
-            this._activeVoiceItem.duration = audioBuffer.duration / source.playbackRate.value;
-          }
-          this._currentItemStartTime = (this.audioCtx && this.audioCtx.state === 'running')
-            ? this.audioCtx.currentTime
-            : performance.now() / 1000;
-
-          this._currentBufferSource = source;
-          source.onended = () => {
-            if (this._currentBufferSource === source) {
-              this._currentBufferSource = null;
-            }
-            if (!this.isSpeaking || (token !== null && this._voicePlayToken !== token)) return;
-            if (onComplete) onComplete();
-          };
-          source.start(0);
+          playAudioBuffer(audioBuffer);
         },
         () => {
           if (token !== null && this._voicePlayToken !== token) return;

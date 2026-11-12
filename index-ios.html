@@ -626,9 +626,7 @@
   <!-- 右下角通知訊息容器 -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
-  <!-- 載入系統 JavaScript 模組 -->
-  <script src="js/mandarin-audio-data.js"></script>
-  <script src="js/taiwanese-audio-data.js"></script>
+  <!-- 載入系統 JavaScript 模組 (非同步高效率架構，實體音訊按需載入，零阻塞主執行緒) -->
   <script src="js/protocol-steps.js"></script>
   <script src="js/audio-engine.js"></script>
   <script src="js/clinical-evaluator.js"></script>
