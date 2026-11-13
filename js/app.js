@@ -19,6 +19,7 @@ class OHAppController {
 
     this.currentStepIndex = 0;
     this.completedStepIds = new Set();
+    this.selectedHistoryIds = new Set();
 
     // 計時器狀態
     this.timerInterval = null;
@@ -1397,7 +1398,16 @@ class OHAppController {
 
     const resetFormBtn = document.getElementById('resetFormBtn');
     if (resetFormBtn) {
-      resetFormBtn.addEventListener('click', () => {
+      resetFormBtn.addEventListener('click', async () => {
+        const confirmed = await this.showConfirmDialog({
+          title: '確認清空重填',
+          message: '確定要清空目前的病患測量結果紀錄並重新開始嗎？未儲存的數值將會遺失。',
+          confirmText: '確定清空',
+          cancelText: '取消',
+          isDestructive: true
+        });
+        if (!confirmed) return;
+
         this.currentRecord = this._createFreshRecord();
         this.completedStepIds.clear();
         this._syncPatientFormFromModel();
@@ -1411,7 +1421,7 @@ class OHAppController {
         this.scrollToMobileSwitcher();
         if (typeof this.closeSidebar === 'function') this.closeSidebar();
 
-        this.showToast('🔄 已開啟空白測量表單');
+        this.showToast('🔄 已清空並開啟空白測量表單');
       });
     }
 
@@ -1429,17 +1439,8 @@ class OHAppController {
     if (copyClinicalNoteBtn) {
       copyClinicalNoteBtn.addEventListener('click', () => {
         const noteText = window.OHClinicalEvaluator.generateClinicalNote(this.currentRecord);
-        navigator.clipboard.writeText(noteText).then(() => {
-          this.showToast('📋 已複製臨床病歷摘要文字！可直接貼上至醫院病歷系統 (HIS)');
-        }).catch(() => {
-          const ta = document.createElement('textarea');
-          ta.value = noteText;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          this.showToast('📋 已複製臨床病歷摘要文字！');
-        });
+        this._copyTextToClipboard(noteText);
+        this.showToast('📋 已複製臨床病歷摘要文字！可直接貼上至醫院病歷系統 (HIS)');
       });
     }
 
@@ -1450,13 +1451,26 @@ class OHAppController {
       });
     }
 
-    const exportCurrentCsvBtn = document.getElementById('exportCurrentCsvBtn');
-    if (exportCurrentCsvBtn) {
-      exportCurrentCsvBtn.addEventListener('click', () => {
-        const all = window.OHStorageManager.getAllRecords();
-        const listToExport = all.length > 0 ? all : [this.currentRecord];
-        window.OHStorageManager.exportRecordsToCSV(listToExport);
-        this.showToast('📊 已匯出 CSV 報表（支援台灣 Excel 直接開啟）');
+    const copyAndEmailBtn = document.getElementById('copyAndEmailBtn');
+    if (copyAndEmailBtn) {
+      copyAndEmailBtn.addEventListener('click', () => {
+        const noteText = window.OHClinicalEvaluator.generateClinicalNote(this.currentRecord);
+        this._copyTextToClipboard(noteText);
+
+        const p = this.currentRecord.patient || {};
+        const patientLabel = [p.name, p.chartId ? `(${p.chartId})` : ''].filter(Boolean).join(' ') || '病患測量紀錄';
+        const subject = `姿勢性低血壓測量結果摘要 - ${patientLabel}`;
+        const emailBody = noteText.replace(/\r?\n/g, '\r\n');
+        const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+
+        const mailLink = document.createElement('a');
+        mailLink.href = mailtoUrl;
+        mailLink.style.display = 'none';
+        document.body.appendChild(mailLink);
+        mailLink.click();
+        document.body.removeChild(mailLink);
+
+        this.showToast('✉️ 已複製摘要！正在開啟郵件程式（若未自動帶入內文，可直接貼上）');
       });
     }
   }
@@ -1792,11 +1806,105 @@ class OHAppController {
     }
   }
 
+  _getFilteredHistoryRecords() {
+    const allRecords = window.OHStorageManager.getAllRecords();
+    const query = (document.getElementById('historySearchInput')?.value || '').trim().toLowerCase();
+    return allRecords.filter(r => {
+      if (!query) return true;
+      const name = (r.patient?.name || '').toLowerCase();
+      const chartId = (r.patient?.chartId || '').toLowerCase();
+      return name.includes(query) || chartId.includes(query);
+    });
+  }
+
+  _updateHistorySelectionUI(filteredRecords = null) {
+    const filtered = filteredRecords || this._getFilteredHistoryRecords();
+    const selectAllCheckbox = document.getElementById('historySelectAllCheckbox');
+    const selectAllBtn = document.getElementById('historySelectAllBtn');
+    const exportSelectedBtn = document.getElementById('historyExportSelectedCsvBtn');
+
+    const visibleSelectedCount = filtered.filter(r => this.selectedHistoryIds.has(r.id)).length;
+    const totalSelectedCount = this.selectedHistoryIds.size;
+
+    if (selectAllCheckbox) {
+      if (filtered.length === 0) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+        selectAllCheckbox.disabled = true;
+      } else {
+        selectAllCheckbox.disabled = false;
+        selectAllCheckbox.checked = visibleSelectedCount === filtered.length;
+        selectAllCheckbox.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < filtered.length;
+      }
+    }
+
+    if (selectAllBtn) {
+      const allVisibleSelected = filtered.length > 0 && visibleSelectedCount === filtered.length;
+      selectAllBtn.textContent = allVisibleSelected ? '☐ 取消全選' : '☑️ 全選';
+    }
+
+    if (exportSelectedBtn) {
+      exportSelectedBtn.textContent = `📊 匯出已勾選 CSV (${totalSelectedCount})`;
+    }
+  }
+
   _bindHistoryControls() {
     const searchInput = document.getElementById('historySearchInput');
     if (searchInput) {
       searchInput.addEventListener('input', () => {
         this._refreshHistoryTable();
+      });
+    }
+
+    const toggleSelectAll = (forceSelect) => {
+      const filtered = this._getFilteredHistoryRecords();
+      if (filtered.length === 0) {
+        this.showToast('目前尚無可選取的歷史紀錄');
+        return;
+      }
+      const shouldSelect = typeof forceSelect === 'boolean'
+        ? forceSelect
+        : !filtered.every(r => this.selectedHistoryIds.has(r.id));
+
+      filtered.forEach(r => {
+        if (shouldSelect) {
+          this.selectedHistoryIds.add(r.id);
+        } else {
+          this.selectedHistoryIds.delete(r.id);
+        }
+      });
+
+      document.querySelectorAll('.history-row-checkbox').forEach(cb => {
+        cb.checked = this.selectedHistoryIds.has(cb.dataset.recordId);
+      });
+      this._updateHistorySelectionUI(filtered);
+    };
+
+    const selectAllCheckbox = document.getElementById('historySelectAllCheckbox');
+    if (selectAllCheckbox) {
+      selectAllCheckbox.addEventListener('change', (e) => {
+        toggleSelectAll(e.target.checked);
+      });
+    }
+
+    const selectAllBtn = document.getElementById('historySelectAllBtn');
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', () => {
+        toggleSelectAll();
+      });
+    }
+
+    const exportSelectedBtn = document.getElementById('historyExportSelectedCsvBtn');
+    if (exportSelectedBtn) {
+      exportSelectedBtn.addEventListener('click', () => {
+        const allRecords = window.OHStorageManager.getAllRecords();
+        const selectedRecords = allRecords.filter(r => this.selectedHistoryIds.has(r.id));
+        if (selectedRecords.length === 0) {
+          this.showToast('請先勾選至少一筆歷史紀錄再匯出 CSV');
+          return;
+        }
+        window.OHStorageManager.exportRecordsToCSV(selectedRecords);
+        this.showToast(`📊 已匯出已勾選的 ${selectedRecords.length} 筆歷史紀錄 CSV`);
       });
     }
 
@@ -1816,30 +1924,31 @@ class OHAppController {
 
   _refreshHistoryTable() {
     const allRecords = window.OHStorageManager.getAllRecords();
+    const validIds = new Set(allRecords.map(r => r.id));
+    for (const id of this.selectedHistoryIds) {
+      if (!validIds.has(id)) {
+        this.selectedHistoryIds.delete(id);
+      }
+    }
+
     const countBadge = document.getElementById('historyCountBadge');
     if (countBadge) countBadge.textContent = String(allRecords.length);
 
     const tbody = document.getElementById('historyTableBody');
     if (!tbody) return;
 
-    const query = (document.getElementById('historySearchInput')?.value || '').trim().toLowerCase();
-    const filtered = allRecords.filter(r => {
-      if (!query) return true;
-      const name = (r.patient?.name || '').toLowerCase();
-      const chartId = (r.patient?.chartId || '').toLowerCase();
-      return name.includes(query) || chartId.includes(query);
-    });
-
+    const filtered = this._getFilteredHistoryRecords();
     tbody.innerHTML = '';
 
     if (filtered.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" style="text-align:center; padding: 2rem; color: #64748b;">
+          <td colspan="9" style="text-align:center; padding: 2rem; color: #64748b;">
             尚無符合條件的儲存紀錄。在主畫面完成測量後點擊「💾 儲存本次紀錄」即可在此查詢與匯出。
           </td>
         </tr>
       `;
+      this._updateHistorySelectionUI(filtered);
       return;
     }
 
@@ -1855,8 +1964,12 @@ class OHAppController {
           ? 'tag-borderline'
           : 'tag-normal';
 
+      const isChecked = this.selectedHistoryIds.has(rec.id);
       const tr = document.createElement('tr');
       tr.innerHTML = `
+        <td class="history-check-col">
+          <input type="checkbox" class="history-checkbox history-row-checkbox" data-record-id="${rec.id}" aria-label="選取病患 ${p.name || p.chartId || '未命名'} 紀錄" ${isChecked ? 'checked' : ''} />
+        </td>
         <td>${rec.measuredAt || '-'}</td>
         <td><strong>${p.chartId || '-'}</strong></td>
         <td>${p.name || '-'}${p.age ? ` (${p.age}歲)` : ''}</td>
@@ -1870,6 +1983,18 @@ class OHAppController {
         </td>
       `;
 
+      const rowCheckbox = tr.querySelector('.history-row-checkbox');
+      if (rowCheckbox) {
+        rowCheckbox.addEventListener('change', (e) => {
+          if (e.target.checked) {
+            this.selectedHistoryIds.add(rec.id);
+          } else {
+            this.selectedHistoryIds.delete(rec.id);
+          }
+          this._updateHistorySelectionUI(filtered);
+        });
+      }
+
       tr.querySelector('.load-rec-btn').addEventListener('click', () => {
         this.currentRecord = JSON.parse(JSON.stringify(rec));
         this._syncPatientFormFromModel();
@@ -1879,13 +2004,106 @@ class OHAppController {
         this.showToast(`📂 已載入病患「${p.name || p.chartId || '未命名'}」的測量紀錄`);
       });
 
-      tr.querySelector('.del-rec-btn').addEventListener('click', () => {
+      tr.querySelector('.del-rec-btn').addEventListener('click', async () => {
+        const confirmed = await this.showConfirmDialog({
+          title: '確認刪除紀錄',
+          message: `確定要刪除病患「${p.name || p.chartId || '未命名'}」（${rec.measuredAt || '-'}）的測量紀錄嗎？刪除後無法復原。`,
+          confirmText: '確定刪除',
+          cancelText: '取消',
+          isDestructive: true
+        });
+        if (!confirmed) return;
+
+        this.selectedHistoryIds.delete(rec.id);
         window.OHStorageManager.deleteRecord(rec.id);
         this._refreshHistoryTable();
         this.showToast('🗑️ 已刪除該筆紀錄');
       });
 
       tbody.appendChild(tr);
+    });
+
+    this._updateHistorySelectionUI(filtered);
+  }
+
+  _copyTextToClipboard(text) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(text).catch(() => {
+        this._fallbackCopyText(text);
+      });
+      return;
+    }
+    this._fallbackCopyText(text);
+  }
+
+  _fallbackCopyText(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-9999px';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+    } catch (e) {
+      // 忽略瀏覽器不支援時的錯誤
+    }
+    document.body.removeChild(ta);
+  }
+
+  showConfirmDialog({
+    title = '確認操作',
+    message = '確定要執行此操作嗎？',
+    confirmText = '確定',
+    cancelText = '取消',
+    isDestructive = false
+  } = {}) {
+    const backdrop = document.getElementById('confirmModalBackdrop');
+    const titleEl = document.getElementById('confirmModalTitle');
+    const msgEl = document.getElementById('confirmModalMessage');
+    const confirmBtn = document.getElementById('confirmModalConfirmBtn');
+    const cancelBtn = document.getElementById('confirmModalCancelBtn');
+
+    if (!backdrop || !confirmBtn || !cancelBtn) {
+      return Promise.resolve(window.confirm(`${title}\n\n${message}`));
+    }
+
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = message;
+    confirmBtn.textContent = confirmText;
+    cancelBtn.textContent = cancelText;
+    confirmBtn.classList.toggle('destructive', Boolean(isDestructive));
+
+    backdrop.classList.add('open');
+    backdrop.setAttribute('aria-hidden', 'false');
+
+    return new Promise((resolve) => {
+      const cleanup = (result) => {
+        backdrop.classList.remove('open');
+        backdrop.setAttribute('aria-hidden', 'true');
+        confirmBtn.removeEventListener('click', onConfirm);
+        cancelBtn.removeEventListener('click', onCancel);
+        backdrop.removeEventListener('click', onBackdropClick);
+        document.removeEventListener('keydown', onKeyDown);
+        resolve(result);
+      };
+
+      const onConfirm = () => cleanup(true);
+      const onCancel = () => cleanup(false);
+      const onBackdropClick = (e) => {
+        if (e.target === backdrop) cleanup(false);
+      };
+      const onKeyDown = (e) => {
+        if (e.key === 'Escape') cleanup(false);
+      };
+
+      confirmBtn.addEventListener('click', onConfirm);
+      cancelBtn.addEventListener('click', onCancel);
+      backdrop.addEventListener('click', onBackdropClick);
+      document.addEventListener('keydown', onKeyDown);
     });
   }
 

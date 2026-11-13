@@ -421,8 +421,8 @@
               <button type="button" class="btn btn-outline" id="printReportBtn">
                 🖨️ 列印 / 匯出 PDF 報告
               </button>
-              <button type="button" class="btn btn-outline" id="exportCurrentCsvBtn">
-                📊 匯出 Excel (CSV)
+              <button type="button" class="btn btn-outline" id="copyAndEmailBtn">
+                ✉️ 複製摘要並用 Email 傳送
               </button>
             </div>
 
@@ -450,15 +450,26 @@
         <div class="panel-body">
           <div class="history-toolbar">
             <input type="search" id="historySearchInput" class="search-input" placeholder="🔍 搜尋病患姓名或病歷號..." />
-            <button type="button" class="btn btn-save" id="historyExportCsvBtn">
-              📊 匯出全部紀錄為 Excel (CSV)
-            </button>
+            <div class="history-toolbar-actions">
+              <button type="button" class="btn btn-outline" id="historySelectAllBtn">
+                ☑️ 全選
+              </button>
+              <button type="button" class="btn btn-save" id="historyExportSelectedCsvBtn">
+                📊 匯出已勾選 CSV (0)
+              </button>
+              <button type="button" class="btn btn-outline" id="historyExportCsvBtn">
+                📊 匯出全部 (CSV)
+              </button>
+            </div>
           </div>
 
           <div class="history-table-wrapper">
             <table class="history-table">
               <thead>
                 <tr>
+                  <th class="history-check-col">
+                    <input type="checkbox" id="historySelectAllCheckbox" class="history-checkbox" aria-label="全選紀錄" title="全選 / 取消全選" />
+                  </th>
                   <th>檢測日期時間</th>
                   <th>病歷號</th>
                   <th>姓名 (年齡)</th>
@@ -602,6 +613,20 @@
     </section>
 
   </main>
+
+  <!-- iOS 風格確認對話框 (Confirmation Modal) -->
+  <div class="ios-modal-backdrop" id="confirmModalBackdrop" aria-hidden="true">
+    <div class="ios-modal-dialog" role="alertdialog" aria-modal="true" aria-labelledby="confirmModalTitle" aria-describedby="confirmModalMessage">
+      <div class="ios-modal-content">
+        <h3 class="ios-modal-title" id="confirmModalTitle">確認操作</h3>
+        <p class="ios-modal-message" id="confirmModalMessage">確定要執行此操作嗎？</p>
+      </div>
+      <div class="ios-modal-actions">
+        <button type="button" class="ios-modal-btn cancel" id="confirmModalCancelBtn">取消</button>
+        <button type="button" class="ios-modal-btn confirm" id="confirmModalConfirmBtn">確定</button>
+      </div>
+    </div>
+  </div>
 
   <!-- 右下角通知訊息容器 -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>

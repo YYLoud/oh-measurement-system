@@ -2120,6 +2120,35 @@ button.btn-primary-large:disabled {
   margin-bottom: 1rem;
 }
 
+.history-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.history-toolbar-actions .btn {
+  height: 38px;
+  padding: 0 0.9rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.history-check-col {
+  width: 44px;
+  text-align: center !important;
+  padding-left: 0.65rem !important;
+  padding-right: 0.35rem !important;
+}
+
+.history-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--ios-blue);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
 .search-input {
   width: 100%;
   max-width: 320px;
@@ -2319,6 +2348,108 @@ button.btn-primary-large:disabled {
 @keyframes dynamic-island-in {
   0% { transform: translateY(16px) scale(0.92); opacity: 0; }
   100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* ==========================================================================
+   iOS 風格確認對話框 (Alert Confirmation Modal)
+   ========================================================================== */
+.ios-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+}
+
+.ios-modal-backdrop.open {
+  display: flex;
+  animation: ios-modal-fade 0.18s ease-out;
+}
+
+.ios-modal-dialog {
+  width: 100%;
+  max-width: 320px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  border: 0.5px solid rgba(60, 60, 67, 0.18);
+  animation: ios-modal-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ios-modal-content {
+  padding: 1.25rem 1.2rem 1.1rem 1.2rem;
+  text-align: center;
+}
+
+.ios-modal-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ios-label);
+  margin-bottom: 0.4rem;
+}
+
+.ios-modal-message {
+  font-size: 0.88rem;
+  color: var(--ios-label-secondary);
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.ios-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 0.5px solid var(--ios-separator);
+}
+
+.ios-modal-btn {
+  border: none;
+  background: transparent;
+  padding: 0.82rem 0.5rem;
+  font-family: inherit;
+  font-size: 0.98rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.ios-modal-btn.cancel {
+  color: var(--ios-blue);
+  border-right: 0.5px solid var(--ios-separator);
+}
+
+.ios-modal-btn.confirm {
+  color: var(--ios-blue);
+  font-weight: 700;
+}
+
+.ios-modal-btn.confirm.destructive {
+  color: var(--ios-red);
+}
+
+.ios-modal-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.ios-modal-btn:active {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+@keyframes ios-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ios-modal-pop {
+  from { opacity: 0; transform: scale(1.06); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* ==========================================================================
