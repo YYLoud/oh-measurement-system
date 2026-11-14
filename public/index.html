@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="姿勢性低血壓測量語音指導與臨床記錄系統 — 支援台語與國語雙語引導、輕音樂計時與自動臨床判讀" />
+  <meta name="theme-color" content="#007aff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>姿勢性低血壓測量語音指導與臨床記錄系統</title>
+  <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="css/ios-theme.css" />
 </head>
 <body>
@@ -430,7 +435,7 @@
             <div class="print-only-footer">
               <span>執行測量醫護人員簽章：__________________________</span>
               <span>醫師判讀簽章：__________________________</span>
-              <span>列印時間：<script>document.write(new Date().toLocaleDateString('zh-TW'));</script></span>
+              <span>列印時間：<span id="printDateText"></span></span>
             </div>
           </div>
         </div>
@@ -459,6 +464,9 @@
               </button>
               <button type="button" class="btn btn-outline" id="historyExportCsvBtn">
                 📊 匯出全部 (CSV)
+              </button>
+              <button type="button" class="btn btn-outline" id="historyClearAllBtn" style="color: var(--ios-red);">
+                🗑️ 清空全部紀錄
               </button>
             </div>
           </div>

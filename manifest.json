@@ -1,0 +1,9 @@
+{
+  "name": "姿勢性低血壓測量語音指導與臨床記錄系統",
+  "short_name": "姿勢性低血壓系統",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f2f2f7",
+  "theme_color": "#007aff",
+  "lang": "zh-TW"
+}

@@ -107,8 +107,12 @@ class OHStorageManager {
 
     const escapeCSV = (val) => {
       if (val === null || val === undefined) return '""';
-      const str = String(val).replace(/"/g, '""');
-      return `"${str}"`;
+      let str = String(val);
+      // 防範 CSV 公式注入 (Excel Formula Injection)，同時保留合法負數差值（如 -25）
+      if (/^[=+\-@\t\r]/.test(str) && !/^[+-]?\d+(\.\d+)?$/.test(str.trim())) {
+        str = `'${str}`;
+      }
+      return `"${str.replace(/"/g, '""')}"`;
     };
 
     const rows = records.map(rec => {

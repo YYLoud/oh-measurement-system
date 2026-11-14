@@ -111,6 +111,11 @@ class OHAppController {
     if (dualRoleDrawer) {
       dualRoleDrawer.open = false;
     }
+
+    const printDateEl = document.getElementById('printDateText');
+    if (printDateEl) {
+      printDateEl.textContent = new Date().toLocaleDateString('zh-TW');
+    }
   }
 
   /**
@@ -1102,7 +1107,7 @@ class OHAppController {
           <div class="bp-input-group">
             <label for="input-${cfg.key}-sbp">收縮壓 (SBP)</label>
             <div class="bp-input-wrapper">
-              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" id="input-${cfg.key}-sbp" min="40" max="280" placeholder="" value="${stageData.sbp}" data-stage="${cfg.key}" data-field="sbp" />
+              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" id="input-${cfg.key}-sbp" min="40" max="280" placeholder="" value="${this._escapeHtml(stageData.sbp)}" data-stage="${cfg.key}" data-field="sbp" />
               <span class="bp-unit">mmHg</span>
             </div>
           </div>
@@ -1110,7 +1115,7 @@ class OHAppController {
           <div class="bp-input-group">
             <label for="input-${cfg.key}-dbp">舒張壓 (DBP)</label>
             <div class="bp-input-wrapper">
-              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" id="input-${cfg.key}-dbp" min="20" max="180" placeholder="" value="${stageData.dbp}" data-stage="${cfg.key}" data-field="dbp" />
+              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="next" id="input-${cfg.key}-dbp" min="20" max="180" placeholder="" value="${this._escapeHtml(stageData.dbp)}" data-stage="${cfg.key}" data-field="dbp" />
               <span class="bp-unit">mmHg</span>
             </div>
           </div>
@@ -1118,7 +1123,7 @@ class OHAppController {
           <div class="bp-input-group">
             <label for="input-${cfg.key}-hr">心跳 (HR)</label>
             <div class="bp-input-wrapper">
-              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" id="input-${cfg.key}-hr" min="30" max="220" placeholder="" value="${stageData.hr}" data-stage="${cfg.key}" data-field="hr" />
+              <input type="number" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" id="input-${cfg.key}-hr" min="30" max="220" placeholder="" value="${this._escapeHtml(stageData.hr)}" data-stage="${cfg.key}" data-field="hr" />
               <span class="bp-unit">bpm</span>
             </div>
           </div>
@@ -1126,7 +1131,7 @@ class OHAppController {
 
         <details class="symptoms-details ${(stageData.symptoms || []).some(s => s !== 'none') ? 'has-active-symptom' : ''}" id="symptoms-details-${cfg.key}" ${(stageData.symptoms || []).some(s => s !== 'none') ? 'open' : ''}>
           <summary>
-            <span>${(stageData.symptoms || []).some(s => s !== 'none') ? '⚠️ 伴隨症狀：' : '🟢 伴隨症狀：'}${window.OHClinicalEvaluator.formatSymptomsText(stageData.symptoms)}</span>
+            <span>${(stageData.symptoms || []).some(s => s !== 'none') ? '⚠️ 伴隨症狀：' : '🟢 伴隨症狀：'}${this._escapeHtml(window.OHClinicalEvaluator.formatSymptomsText(stageData.symptoms))}</span>
           </summary>
           <div class="symptoms-row" id="symptoms-row-${cfg.key}"></div>
         </details>
@@ -1920,6 +1925,30 @@ class OHAppController {
         this.showToast(`📊 已匯出全部 ${records.length} 筆歷史紀錄 CSV`);
       });
     }
+
+    const clearAllBtn = document.getElementById('historyClearAllBtn');
+    if (clearAllBtn) {
+      clearAllBtn.addEventListener('click', async () => {
+        const records = window.OHStorageManager.getAllRecords();
+        if (records.length === 0) {
+          this.showToast('目前尚無已儲存的歷史紀錄');
+          return;
+        }
+        const confirmed = await this.showConfirmDialog({
+          title: '確認清空全部歷史紀錄',
+          message: `確定要永久刪除本機儲存的全部 ${records.length} 筆病患測量紀錄嗎？刪除後無法復原。`,
+          confirmText: '全部清空',
+          cancelText: '取消',
+          isDestructive: true
+        });
+        if (!confirmed) return;
+
+        window.OHStorageManager.clearAllRecords();
+        this.selectedHistoryIds.clear();
+        this._refreshHistoryTable();
+        this.showToast('🗑️ 已清空全部本機歷史紀錄');
+      });
+    }
   }
 
   _refreshHistoryTable() {
@@ -1965,17 +1994,27 @@ class OHAppController {
           : 'tag-normal';
 
       const isChecked = this.selectedHistoryIds.has(rec.id);
+      const safeRecId = this._escapeHtml(rec.id);
+      const safeMeasuredAt = this._escapeHtml(rec.measuredAt || '-');
+      const safeChartId = this._escapeHtml(p.chartId || '-');
+      const safeName = this._escapeHtml(p.name || '-');
+      const safeAge = p.age ? ` (${this._escapeHtml(p.age)}歲)` : '';
+      const safePatientLabel = this._escapeHtml(p.name || p.chartId || '未命名');
+      const safeSupine = `${this._escapeHtml(m.supine?.sbp || '--')}/${this._escapeHtml(m.supine?.dbp || '--')} <small>(${this._escapeHtml(m.supine?.hr || '--')})</small>`;
+      const safeStand1 = `${this._escapeHtml(m.stand1?.sbp || '--')}/${this._escapeHtml(m.stand1?.dbp || '--')} <small>(Δ${this._escapeHtml(evalRes.stand1Eval?.deltaSbp ?? '--')})</small>`;
+      const safeStand3 = `${this._escapeHtml(m.stand3?.sbp || '--')}/${this._escapeHtml(m.stand3?.dbp || '--')} <small>(Δ${this._escapeHtml(evalRes.stand3Eval?.deltaSbp ?? '--')})</small>`;
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="history-check-col">
-          <input type="checkbox" class="history-checkbox history-row-checkbox" data-record-id="${rec.id}" aria-label="選取病患 ${p.name || p.chartId || '未命名'} 紀錄" ${isChecked ? 'checked' : ''} />
+          <input type="checkbox" class="history-checkbox history-row-checkbox" data-record-id="${safeRecId}" aria-label="選取病患 ${safePatientLabel} 紀錄" ${isChecked ? 'checked' : ''} />
         </td>
-        <td>${rec.measuredAt || '-'}</td>
-        <td><strong>${p.chartId || '-'}</strong></td>
-        <td>${p.name || '-'}${p.age ? ` (${p.age}歲)` : ''}</td>
-        <td>${m.supine?.sbp || '--'}/${m.supine?.dbp || '--'} <small>(${m.supine?.hr || '--'})</small></td>
-        <td>${m.stand1?.sbp || '--'}/${m.stand1?.dbp || '--'} <small>(Δ${evalRes.stand1Eval?.deltaSbp ?? '--'})</small></td>
-        <td>${m.stand3?.sbp || '--'}/${m.stand3?.dbp || '--'} <small>(Δ${evalRes.stand3Eval?.deltaSbp ?? '--'})</small></td>
+        <td>${safeMeasuredAt}</td>
+        <td><strong>${safeChartId}</strong></td>
+        <td>${safeName}${safeAge}</td>
+        <td>${safeSupine}</td>
+        <td>${safeStand1}</td>
+        <td>${safeStand3}</td>
         <td><span class="status-tag ${tagClass}">${evalRes.isPositiveOH ? '陽性 (OH+)' : '陰性 (OH-)'}</span></td>
         <td>
           <button type="button" class="speak-single-btn load-rec-btn">載入檢視</button>
@@ -2024,6 +2063,16 @@ class OHAppController {
     });
 
     this._updateHistorySelectionUI(filtered);
+  }
+
+  _escapeHtml(val) {
+    if (val === null || val === undefined) return '';
+    return String(val)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   _copyTextToClipboard(text) {
@@ -2077,8 +2126,10 @@ class OHAppController {
     cancelBtn.textContent = cancelText;
     confirmBtn.classList.toggle('destructive', Boolean(isDestructive));
 
+    const previousFocus = document.activeElement;
     backdrop.classList.add('open');
     backdrop.setAttribute('aria-hidden', 'false');
+    cancelBtn.focus();
 
     return new Promise((resolve) => {
       const cleanup = (result) => {
@@ -2088,6 +2139,9 @@ class OHAppController {
         cancelBtn.removeEventListener('click', onCancel);
         backdrop.removeEventListener('click', onBackdropClick);
         document.removeEventListener('keydown', onKeyDown);
+        if (previousFocus && typeof previousFocus.focus === 'function') {
+          previousFocus.focus();
+        }
         resolve(result);
       };
 
