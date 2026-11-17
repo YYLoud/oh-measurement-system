@@ -123,6 +123,10 @@
           <div class="panel-body">
             <!-- 階段進度條 (可點擊切換任意階段，再次點擊當前階段可直接播放) -->
             <div class="stepper-track" id="stepperTrack" aria-label="測量階段進度"></div>
+            <div class="stepper-trash-zone no-print" id="stepperTrashZone" aria-hidden="true">
+              <span class="trash-zone-icon">🗑️</span>
+              <span class="trash-zone-text" id="stepperTrashZoneText">拖曳至此放開，或繼續按住自動移除「坐姿過渡測量」</span>
+            </div>
 
             <!-- ============================================================
                  一體化「當前階段顯示 ＋ 語音/輕音樂播放與計時主控台」
@@ -212,8 +216,8 @@
                       </div>
 
                       <div class="protocol-toolbar" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
-                        <label class="toggle-label" title="勾選後將在平躺與站立之間增加「坐姿過渡與測量」階段">
-                          <input type="checkbox" id="includeSittingToggle" />
+                        <label class="toggle-label" title="預設包含，可長按上方卡片移除或在此切換「坐姿過渡與測量」階段">
+                          <input type="checkbox" id="includeSittingToggle" checked />
                           <span>包含「坐姿過渡測量」階段</span>
                         </label>
                         <label class="toggle-label" title="開啟後將等待計時縮短為 15 秒，方便快速展示、教學或測試語音流程">

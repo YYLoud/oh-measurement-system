@@ -841,6 +841,184 @@ body {
 }
 
 /* ==========================================================================
+   可選步驟「坐姿過渡測量」：視覺暗示、兩段式長按進度、拖曳垃圾桶與復原按鈕
+   ========================================================================== */
+.step-node-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  position: relative;
+  z-index: 1;
+}
+
+.step-drag-grip {
+  font-size: 0.78rem;
+  line-height: 1;
+  letter-spacing: -1px;
+  color: #b45309;
+  opacity: 0.78;
+  font-weight: 800;
+}
+
+.step-node.active .step-drag-grip {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.step-node-title,
+.step-optional-hint {
+  position: relative;
+  z-index: 1;
+}
+
+.step-optional-hint {
+  font-size: 0.66rem;
+  color: #b45309;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.step-node.active .step-optional-hint {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.step-longpress-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  background: rgba(239, 68, 68, 0.22);
+  pointer-events: none;
+  border-radius: 12px;
+  z-index: 0;
+  transition: width 0.05s linear;
+}
+
+.step-node.optional-removable {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-x;
+  border-style: dashed;
+}
+
+.step-node.optional-removable:not(.active):not(.completed) {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1.5px dashed #f59e0b;
+}
+
+.step-node.optional-removable:not(.active):not(.completed):hover {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+}
+
+.step-node.optional-removable.active {
+  border-style: dashed;
+}
+
+@keyframes step-wiggle-once {
+  0%, 100% { transform: rotate(0deg); }
+  18% { transform: rotate(-2.5deg) scale(1.02); }
+  36% { transform: rotate(2.5deg) scale(1.02); }
+  54% { transform: rotate(-2deg); }
+  72% { transform: rotate(1.5deg); }
+}
+
+.step-node.wiggle-once {
+  animation: step-wiggle-once 0.65s ease-in-out 0.35s 1;
+}
+
+.step-node.pressing-stage1 {
+  transform: scale(1.03) !important;
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.28) !important;
+  z-index: 10 !important;
+}
+
+.step-node.pressing-stage2-float {
+  transform: scale(1.06) translateY(-2px) !important;
+  border-color: #ef4444 !important;
+  border-style: dashed !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 12px 28px rgba(239, 68, 68, 0.32) !important;
+  z-index: 15 !important;
+}
+
+.step-node.pressing-stage2-float .step-node-num,
+.step-node.pressing-stage2-float .step-node-title,
+.step-node.pressing-stage2-float .step-drag-grip,
+.step-node.pressing-stage2-float .step-optional-hint {
+  color: #b91c1c !important;
+}
+
+.stepper-trash-zone {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  margin-bottom: 0;
+  padding: 0 0.9rem;
+  border-radius: 12px;
+  border: 1.5px dashed transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  pointer-events: none;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stepper-trash-zone.visible {
+  max-height: 56px;
+  opacity: 1;
+  margin-bottom: 0.85rem;
+  padding: 0.55rem 0.9rem;
+  border-color: #ef4444;
+  background: rgba(254, 226, 226, 0.85);
+  color: #b91c1c;
+  pointer-events: auto;
+}
+
+.stepper-trash-zone.drag-over {
+  background: #ef4444;
+  color: #ffffff;
+  border-style: solid;
+  transform: scale(1.01);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
+}
+
+.step-restore-sitting-btn {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 12px;
+  border: 1.5px dashed rgba(245, 158, 11, 0.65);
+  background: rgba(255, 251, 235, 0.85);
+  color: #b45309;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.step-restore-sitting-btn:hover {
+  background: #fef3c7;
+  border-color: #d97706;
+  transform: scale(1.03);
+}
+
+.step-restore-sitting-btn:active {
+  transform: scale(0.97);
+}
+
+/* ==========================================================================
    當前階段控制橫幅 — Apple Watch 活動卡片風格
    ========================================================================== */
 .current-stage-banner {

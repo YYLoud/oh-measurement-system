@@ -8,7 +8,9 @@ class OHAppController {
     this.audioEngine = new window.OHAudioEngine();
 
     // 流程設定與狀態
-    this.includeSittingStep = false;
+    this.includeSittingStep = true;
+    this.sittingStepLocked = false;
+    this._sittingWigglePlayed = false;
     this.quickDemoMode = false; // 快速測試模式 (將等待時間縮短為 15 秒方便預覽與教學)
     this.customDurations = {
       supine_rest: 300,
@@ -426,6 +428,7 @@ class OHAppController {
         const steps = this.getActiveSteps();
         if (this.currentStepIndex < steps.length - 1) {
           this.completedStepIds.add(this.getCurrentStep().id);
+          this._lockSittingStepIfNeeded();
           this._loadStep(this.currentStepIndex + 1, { autoSpeak: true });
         }
       });
@@ -565,6 +568,223 @@ class OHAppController {
     });
   }
 
+  _lockSittingStepIfNeeded() {
+    if (!this.sittingStepLocked) {
+      this.sittingStepLocked = true;
+      const toggle = document.getElementById('includeSittingToggle');
+      if (toggle) toggle.disabled = true;
+      this._renderStepper();
+    }
+  }
+
+  removeSittingStepWithUndo() {
+    if (this.sittingStepLocked || !this.includeSittingStep) return;
+
+    const prevStepId = this.getCurrentStep()?.id;
+    this.includeSittingStep = false;
+
+    const sittingToggle = document.getElementById('includeSittingToggle');
+    if (sittingToggle) sittingToggle.checked = false;
+
+    const newSteps = this.getActiveSteps();
+    if (prevStepId === 'sitting_transition') {
+      this.currentStepIndex = 0;
+    } else {
+      const sameIdx = newSteps.findIndex(s => s.id === prevStepId);
+      this.currentStepIndex = sameIdx >= 0
+        ? sameIdx
+        : Math.max(0, Math.min(this.currentStepIndex, newSteps.length - 1));
+    }
+
+    this._loadStep(this.currentStepIndex, { autoSpeak: false });
+    this._renderMeasurementStages();
+    this._updateClinicalAssessment();
+    this.showToast('🗑️ 已移除「坐姿過渡測量」（可點擊步驟列中間「＋ 恢復坐姿測量」隨時救回）');
+  }
+
+  restoreSittingStep() {
+    if (this.sittingStepLocked || this.includeSittingStep) return;
+
+    const prevStepId = this.getCurrentStep()?.id;
+    this.includeSittingStep = true;
+    this._sittingWigglePlayed = false;
+
+    const sittingToggle = document.getElementById('includeSittingToggle');
+    if (sittingToggle) sittingToggle.checked = true;
+
+    const newSteps = this.getActiveSteps();
+    const sameIdx = newSteps.findIndex(s => s.id === prevStepId);
+    if (sameIdx >= 0) {
+      this.currentStepIndex = sameIdx;
+    }
+
+    this._loadStep(this.currentStepIndex, { autoSpeak: false });
+    this._renderMeasurementStages();
+    this._updateClinicalAssessment();
+    this.showToast('🔄 已恢復「坐姿過渡與測量」階段');
+  }
+
+  _bindSittingNodeLongPress(node, idx) {
+    const trashZone = document.getElementById('stepperTrashZone');
+    const fillBar = node.querySelector('.step-longpress-fill');
+
+    let pressTimerStage2 = null;
+    let pressTimerAutoRemove = null;
+    let rafId = null;
+    let isPressing = false;
+    let inStage2 = false;
+    let cancelledByMove = false;
+    let dragOverTrash = false;
+    let isPointerInsideControl = true;
+    let startX = 0;
+    let startY = 0;
+    let startTime = 0;
+
+    const hitTestRect = (el, x, y, pad = 10) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+    };
+
+    const cleanupVisuals = () => {
+      isPressing = false;
+      clearTimeout(pressTimerStage2);
+      clearTimeout(pressTimerAutoRemove);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      node.classList.remove('pressing-stage1', 'pressing-stage2-float');
+      if (fillBar) fillBar.style.width = '0%';
+      if (trashZone) {
+        trashZone.classList.remove('visible', 'drag-over');
+        trashZone.setAttribute('aria-hidden', 'true');
+      }
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerCancel);
+    };
+
+    const updateProgress = () => {
+      if (!isPressing) return;
+      const elapsed = performance.now() - startTime;
+      const pct = Math.min(100, (elapsed / 1200) * 100);
+      if (fillBar) fillBar.style.width = `${pct}%`;
+      if (elapsed < 1200) {
+        rafId = requestAnimationFrame(updateProgress);
+      }
+    };
+
+    const onPointerMove = (e) => {
+      if (!isPressing) return;
+      const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
+      if (!inStage2) {
+        if (dist > 12) {
+          cancelledByMove = true;
+          cleanupVisuals();
+        }
+        return;
+      }
+
+      dragOverTrash = trashZone ? hitTestRect(trashZone, e.clientX, e.clientY, 12) : false;
+      const overNode = hitTestRect(node, e.clientX, e.clientY, 16);
+      isPointerInsideControl = dragOverTrash || overNode;
+      if (trashZone) {
+        trashZone.classList.toggle('drag-over', dragOverTrash);
+      }
+    };
+
+    const onPointerUp = (e) => {
+      if (!isPressing) return;
+      const wasStage2 = inStage2;
+      const wasCancelled = cancelledByMove;
+      const droppedOnTrash = trashZone ? hitTestRect(trashZone, e.clientX, e.clientY, 12) : dragOverTrash;
+      cleanupVisuals();
+
+      if (wasStage2) {
+        if (droppedOnTrash) {
+          this.removeSittingStepWithUndo();
+        }
+        return;
+      }
+
+      if (!wasCancelled) {
+        if (idx === this.currentStepIndex) {
+          this.startCurrentStepAction();
+        } else {
+          this._loadStep(idx, { autoSpeak: false });
+        }
+      }
+    };
+
+    const onPointerCancel = () => {
+      if (!isPressing) return;
+      cleanupVisuals();
+    };
+
+    node.addEventListener('contextmenu', (e) => {
+      if (!this.sittingStepLocked) e.preventDefault();
+    });
+
+    node.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (this.sittingStepLocked) return;
+
+      isPressing = true;
+      inStage2 = false;
+      cancelledByMove = false;
+      dragOverTrash = false;
+      isPointerInsideControl = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startTime = performance.now();
+
+      node.classList.remove('wiggle-once');
+      node.classList.add('pressing-stage1');
+      rafId = requestAnimationFrame(updateProgress);
+
+      pressTimerStage2 = setTimeout(() => {
+        if (!isPressing) return;
+        inStage2 = true;
+        node.classList.add('pressing-stage2-float');
+        if (trashZone) {
+          trashZone.classList.add('visible');
+          trashZone.setAttribute('aria-hidden', 'false');
+        }
+        if (navigator.vibrate) {
+          try { navigator.vibrate(25); } catch (_) {}
+        }
+      }, 500);
+
+      pressTimerAutoRemove = setTimeout(() => {
+        if (!isPressing || !inStage2) return;
+        if (isPointerInsideControl || dragOverTrash) {
+          cleanupVisuals();
+          this.removeSittingStepWithUndo();
+        }
+      }, 1200);
+
+      window.addEventListener('pointermove', onPointerMove);
+      window.addEventListener('pointerup', onPointerUp);
+      window.addEventListener('pointercancel', onPointerCancel);
+    });
+
+    node.tabIndex = 0;
+    node.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (idx === this.currentStepIndex) {
+          this.startCurrentStepAction();
+        } else {
+          this._loadStep(idx, { autoSpeak: false });
+        }
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && !this.sittingStepLocked) {
+        e.preventDefault();
+        this.removeSittingStepWithUndo();
+      }
+    });
+  }
+
   _renderStepper() {
     const track = document.getElementById('stepperTrack');
     if (!track) return;
@@ -584,23 +804,57 @@ class OHAppController {
         ? `⏱️ ${Math.floor(durSec / 60)}:${String(durSec % 60).padStart(2, '0')}`
         : '🔊 語音指引';
 
-      node.innerHTML = `
-        <span class="step-node-num">步驟 ${idx + 1} · ${timeHint}</span>
-        <span class="step-node-title">${isCurrent ? '▶ ' : ''}${step.shortTitle}</span>
-      `;
-      node.title = isCurrent
-        ? '點擊立即播報本階段語音與啟動計時'
-        : `點擊切換至「${step.shortTitle}」`;
+      const isOptionalSitting = Boolean(step.optionalSitting && !this.sittingStepLocked);
 
-      node.addEventListener('click', () => {
-        if (idx === this.currentStepIndex) {
-          this.startCurrentStepAction();
-        } else {
-          this._loadStep(idx, { autoSpeak: false });
+      if (isOptionalSitting) {
+        node.classList.add('optional-removable');
+        if (this.currentStepIndex === 0 && !this._sittingWigglePlayed) {
+          node.classList.add('wiggle-once');
+          this._sittingWigglePlayed = true;
         }
-      });
+        node.innerHTML = `
+          <div class="step-longpress-fill" aria-hidden="true"></div>
+          <div class="step-node-header-row">
+            <span class="step-node-num">步驟 ${idx + 1} · ${timeHint}</span>
+            <span class="step-drag-grip" aria-hidden="true">⋮⋮</span>
+          </div>
+          <span class="step-node-title">${isCurrent ? '▶ ' : ''}${step.shortTitle}</span>
+          <span class="step-optional-hint">可選步驟 · 長按移除</span>
+        `;
+        node.title = '可選步驟：點擊切換／播報；長按或拖曳至垃圾桶即可移除';
+        this._bindSittingNodeLongPress(node, idx);
+      } else {
+        node.innerHTML = `
+          <span class="step-node-num">步驟 ${idx + 1} · ${timeHint}</span>
+          <span class="step-node-title">${isCurrent ? '▶ ' : ''}${step.shortTitle}</span>
+        `;
+        node.title = isCurrent
+          ? '點擊立即播報本階段語音與啟動計時'
+          : `點擊切換至「${step.shortTitle}」`;
+
+        node.addEventListener('click', () => {
+          if (idx === this.currentStepIndex) {
+            this.startCurrentStepAction();
+          } else {
+            this._loadStep(idx, { autoSpeak: false });
+          }
+        });
+      }
 
       track.appendChild(node);
+
+      // 安全網復原按鈕：當坐姿過渡已移除且尚未鎖定時，於「平躺血壓測量」與「站立第 1 分鐘」之間顯示微巧復原鈕
+      if (step.id === 'supine_measure' && !this.includeSittingStep && !this.sittingStepLocked) {
+        const restoreBtn = document.createElement('button');
+        restoreBtn.type = 'button';
+        restoreBtn.className = 'step-restore-sitting-btn';
+        restoreBtn.title = '點擊恢復「坐姿過渡與測量」可選步驟';
+        restoreBtn.innerHTML = '<span>＋ 恢復坐姿測量</span>';
+        restoreBtn.addEventListener('click', () => {
+          this.restoreSittingStep();
+        });
+        track.appendChild(restoreBtn);
+      }
 
       // 在手機水平滾動條上自動將當前步驟節點水平滑至軌道中央（純水平滾動，絕不干擾整頁垂直視窗）
       if (idx === this.currentStepIndex) {
@@ -712,6 +966,7 @@ class OHAppController {
 
   _startTimer(step) {
     this._stopTimer();
+    this._lockSittingStepIfNeeded();
     this.timerTotalSec = this.getStepDurationSec(step);
     this.timerRemainingSec = this.timerTotalSec;
     this.preAlertTriggered = false;
@@ -1217,6 +1472,9 @@ class OHAppController {
         const field = e.target.getAttribute('data-field');
         if (this.currentRecord.measurements[stageKey]) {
           this.currentRecord.measurements[stageKey][field] = e.target.value;
+          if (e.target.value !== '') {
+            this._lockSittingStepIfNeeded();
+          }
           this._updateClinicalAssessment();
         }
       });
@@ -1428,6 +1686,14 @@ class OHAppController {
 
         this.currentRecord = this._createFreshRecord();
         this.completedStepIds.clear();
+        this.sittingStepLocked = false;
+        this.includeSittingStep = true;
+        this._sittingWigglePlayed = false;
+        const sittingToggle = document.getElementById('includeSittingToggle');
+        if (sittingToggle) {
+          sittingToggle.checked = true;
+          sittingToggle.disabled = false;
+        }
         this._syncPatientFormFromModel();
         this._loadStep(0, { autoSpeak: false });
         this._renderMeasurementStages();
@@ -1654,6 +1920,7 @@ class OHAppController {
       musicVolume: this.audioEngine.musicVolume ?? 0.45,
       durations: { ...this.customDurations },
       includeSittingStep: Boolean(this.includeSittingStep),
+      includeSittingStepExplicit: true,
       quickDemoMode: Boolean(this.quickDemoMode)
     };
 
@@ -1687,7 +1954,8 @@ class OHAppController {
         stand_1min: 60,
         stand_3min: 120
       },
-      includeSittingStep: false,
+      includeSittingStep: true,
+      includeSittingStepExplicit: true,
       quickDemoMode: false
     };
 
@@ -1801,10 +2069,13 @@ class OHAppController {
     }
 
     // 7. 坐姿過渡階段開關
-    if (typeof cfg.includeSittingStep === 'boolean') {
+    if (cfg.includeSittingStepExplicit === true && typeof cfg.includeSittingStep === 'boolean') {
       this.includeSittingStep = cfg.includeSittingStep;
       const sittingToggle = document.getElementById('includeSittingToggle');
-      if (sittingToggle) sittingToggle.checked = cfg.includeSittingStep;
+      if (sittingToggle) {
+        sittingToggle.checked = cfg.includeSittingStep;
+        sittingToggle.disabled = Boolean(this.sittingStepLocked);
+      }
       this._renderStepper();
       this._renderMeasurementStages();
       this._updateClinicalAssessment();
