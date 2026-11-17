@@ -2435,6 +2435,17 @@ button.btn-primary-large:disabled {
   accent-color: var(--ios-blue);
 }
 
+input[type="range"] {
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+input[type="range"]:active {
+  cursor: grabbing;
+}
+
 .settings-actions-bar {
   display: flex;
   gap: 0.85rem;

@@ -93,6 +93,7 @@ class OHAppController {
   _init() {
     this._bindAudioCallbacks();
     this._bindNavigationTabs();
+    this._bindRelativeRangeSliders();
     this._bindGuidanceControls();
     this._bindRecordFormInputs();
     this._bindSettingsControls();
@@ -1788,6 +1789,149 @@ class OHAppController {
     setVal('patientCuffSize', p.cuffSize || '標準成人壓脈帶 (Standard)');
     setVal('patientNotes', p.notes);
     setVal('patientMeasuredAt', this.currentRecord.measuredAtInput);
+  }
+
+  /**
+   * 讓所有滑桿 (range) 改為手機亮度調整風格：
+   * 輕點一下直接跳至點擊位置；按住並左右滑動時，從原本數值位置相對順暢加減，碰觸當下不會亂跳
+   */
+  _bindRelativeRangeSliders() {
+    const sliders = document.querySelectorAll('input[type="range"]');
+    const navKeys = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
+
+    sliders.forEach((slider) => {
+      slider._controlledValue = slider.value;
+      slider._allowCustomInput = false;
+      slider._isKeyboardAdjust = false;
+
+      slider.addEventListener('keydown', (e) => {
+        if (navKeys.has(e.key)) {
+          slider._isKeyboardAdjust = true;
+        }
+      });
+
+      slider.addEventListener('keyup', (e) => {
+        if (navKeys.has(e.key)) {
+          slider._isKeyboardAdjust = false;
+          slider._controlledValue = slider.value;
+        }
+      });
+
+      // 擷取階段攔截原生碰觸立即跳位行為，僅允許程式控制或鍵盤調整通過
+      slider.addEventListener('input', (e) => {
+        if (slider._isKeyboardAdjust) {
+          slider._controlledValue = slider.value;
+          return;
+        }
+        if (!slider._allowCustomInput) {
+          e.stopImmediatePropagation();
+          slider.value = slider._controlledValue;
+        }
+      }, true);
+
+      slider.addEventListener('change', (e) => {
+        if (slider._isKeyboardAdjust) {
+          slider._controlledValue = slider.value;
+          return;
+        }
+        if (!slider._allowCustomInput) {
+          e.stopImmediatePropagation();
+          slider.value = slider._controlledValue;
+        }
+      }, true);
+
+      const applySliderValue = (rawVal) => {
+        const min = parseFloat(slider.min) || 0;
+        const max = slider.max !== '' ? parseFloat(slider.max) : 100;
+        const step = parseFloat(slider.step) || 1;
+        const stepDecimals = (String(step).split('.')[1] || '').length;
+
+        const clamped = Math.min(max, Math.max(min, rawVal));
+        const snapped = Math.round((clamped - min) / step) * step + min;
+        const finalVal = Number(Math.min(max, Math.max(min, snapped)).toFixed(stepDecimals));
+
+        slider._controlledValue = String(finalVal);
+        slider._allowCustomInput = true;
+        slider.value = String(finalVal);
+        slider.dispatchEvent(new Event('input', { bubbles: true }));
+        slider._allowCustomInput = false;
+      };
+
+      slider.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+
+        // 若使用者從另一個同步滑桿或程式設定更新過值，先以當前 DOM 值同步基準點
+        slider._controlledValue = slider.value;
+        const startVal = parseFloat(slider.value) || 0;
+        const min = parseFloat(slider.min) || 0;
+        const max = slider.max !== '' ? parseFloat(slider.max) : 100;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startTime = performance.now();
+        const activePointerId = e.pointerId;
+        let isDragging = false;
+        let isVerticalScroll = false;
+
+        if (e.pointerType === 'mouse') {
+          e.preventDefault();
+        }
+
+        const cleanup = () => {
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+          window.removeEventListener('pointercancel', onPointerCancel);
+        };
+
+        const onPointerMove = (moveEvent) => {
+          if (moveEvent.pointerId !== activePointerId || isVerticalScroll) return;
+          const dx = moveEvent.clientX - startX;
+          const dy = moveEvent.clientY - startY;
+
+          if (!isDragging) {
+            if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.2) {
+              isVerticalScroll = true;
+              cleanup();
+              return;
+            }
+            if (Math.abs(dx) > 3) {
+              isDragging = true;
+            }
+          }
+
+          if (isDragging) {
+            const rect = slider.getBoundingClientRect();
+            const trackWidth = Math.max(40, rect.width - 20);
+            const deltaVal = (dx / trackWidth) * (max - min);
+            applySliderValue(startVal + deltaVal);
+          }
+        };
+
+        const onPointerUp = (upEvent) => {
+          if (upEvent.pointerId !== activePointerId) return;
+          const elapsed = performance.now() - startTime;
+          const dx = Math.abs(upEvent.clientX - startX);
+          const dy = Math.abs(upEvent.clientY - startY);
+
+          // 輕碰一下 (Quick Tap) 才直接跳到該點擊位置
+          if (!isDragging && !isVerticalScroll && elapsed < 240 && dx <= 8 && dy <= 8) {
+            const rect = slider.getBoundingClientRect();
+            const ratio = Math.min(1, Math.max(0, (upEvent.clientX - (rect.left + 10)) / Math.max(20, rect.width - 20)));
+            applySliderValue(min + ratio * (max - min));
+          }
+          cleanup();
+        };
+
+        const onPointerCancel = (cancelEvent) => {
+          if (cancelEvent.pointerId === activePointerId) {
+            cleanup();
+          }
+        };
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerCancel);
+      }, true);
+    });
   }
 
   _bindSettingsControls() {
