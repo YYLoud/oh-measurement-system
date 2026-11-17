@@ -1186,11 +1186,12 @@ class OHAppController {
             }
           }
 
+          this.switchMobilePartView('part1');
+
           if (targetNextIndex < steps.length) {
-            this._loadStep(targetNextIndex, { autoSpeak: false });
+            this._loadStep(targetNextIndex, { autoSpeak: true });
           }
 
-          this.switchMobilePartView('part1');
           this.scrollToMobileSwitcher();
 
           const currentStep = this.getCurrentStep();
