@@ -1246,6 +1246,21 @@ class OHAppController {
         pauseBtn.disabled = true;
         pauseBtn.textContent = '⏸ 暫停';
       }
+
+      if (step.id === 'prep' && prog.stepId === 'prep') {
+        setTimeout(() => {
+          const cur = this.getCurrentStep();
+          if (!cur || cur.id !== 'prep') return;
+          const steps = this.getActiveSteps();
+          if (this.currentStepIndex < steps.length - 1) {
+            this.completedStepIds.add(cur.id);
+            this._lockSittingStepIfNeeded();
+            this._loadStep(this.currentStepIndex + 1, { autoSpeak: true });
+            this.showToast('✅「測量前準備」語音播報完畢，已自動進入「平躺靜息 5 分鐘」');
+          }
+        }, 150);
+        return;
+      }
     } else {
       // 停止或重設
       if (replayBtn) replayBtn.disabled = false;
