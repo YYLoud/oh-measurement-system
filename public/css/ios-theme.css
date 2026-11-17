@@ -988,6 +988,11 @@ body {
   box-shadow: 0 6px 16px rgba(239, 68, 68, 0.3);
 }
 
+.stepper-trash-zone .trash-zone-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
 .step-restore-sitting-btn {
   flex: 0 0 auto;
   display: flex;
