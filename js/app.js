@@ -795,6 +795,18 @@ class OHAppController {
     const progressWrap = document.getElementById('voiceProgressContainer');
     if (progressWrap) progressWrap.style.display = 'none';
     this.completedStepIds.add(step.id);
+
+    if (step.id === 'supine_rest') {
+      const steps = this.getActiveSteps();
+      const supineMeasureIdx = steps.findIndex(s => s.id === 'supine_measure');
+      if (supineMeasureIdx >= 0) {
+        this._loadStep(supineMeasureIdx, { autoSpeak: true });
+        this._highlightActiveRecordBox('supine', true);
+        this.showToast('🔔 平躺靜息 5 分鐘完成！已自動進入「平躺血壓測量」階段。');
+        return;
+      }
+    }
+
     this._renderStepper();
     this._updateTimerUI();
 
